@@ -61,3 +61,7 @@ wget-log
 
 # Pyd build artifacts
 build_pyd/
+
+# Mods (deprecated, keep dir but ignore contents)
+mods/*
+!mods/.gitkeep

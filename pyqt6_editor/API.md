@@ -182,20 +182,6 @@ class StateDefineNode(Node):
         return {'state_names': []}
 ```
 
-## 4. 模组系统
-
-### 4.1 ModLoader 类
-
-**描述**：模组加载器，用于加载外部模组。
-
-**主要方法**：
-
-| 方法名 | 参数 | 返回值 | 描述 |
-|-------|------|-------|------|
-| `__init__(mods_dir)` | mods_dir: str 模组目录路径 | 无 | 初始化模组加载器 |
-| `load_all_mods()` | 无 | 无 | 加载所有模组 |
-| `get_loaded_mods_info()` | 无 | str | 获取已加载模组信息 |
-
 ## 5. 代码生成
 
 ### 5.1 LuaCodeGenerator 类
@@ -208,19 +194,7 @@ class StateDefineNode(Node):
 |-------|------|-------|------|
 | `generate(nodes, connections)` | nodes: list[Node] 节点列表<br>connections: list[Connection] 连接列表 | str | 生成 Lua 代码 |
 
-## 6. 反向解析
-
-### 6.1 ReverseParser 类
-
-**描述**：反向解析器，用于将 Lua 代码转换为节点图。
-
-**主要方法**：
-
-| 方法名 | 参数 | 返回值 | 描述 |
-|-------|------|-------|------|
-| `parse(code)` | code: str Lua 代码 | tuple(list[Node], list[tuple]) | 解析代码并生成节点和连接 |
-
-## 7. 图形界面组件
+## 6. 图形界面组件
 
 ### 7.1 NodeGraphicsItem
 
@@ -309,84 +283,20 @@ exec_dir = get_exe_dir()
 print(f"可执行文件目录: {exec_dir}")
 ```
 
-## 9. 示例代码
+## 9. 常见问题与解决方案
 
-### 9.1 创建自定义节点
-
-```python
-from pyqt6_editor.node import Node, PortType
-from pyqt6_editor.registry import register_node
-
-@register_node("自定义节点", "#FF5733", "我的计算节点", "这是一个简单的计算节点")
-class MyMathNode(Node):
-    def _init_ports(self):
-        self.add_input("操作数1", PortType.DATA, "number")
-        self.add_input("操作数2", PortType.DATA, "number")
-        self.add_output("结果", PortType.DATA, "number")
-    
-    def _get_config(self):
-        return {"operation": "add"}  # add, subtract, multiply, divide
-    
-    def execute(self):
-        op1 = self.get_input_by_name("操作数1").get_data() or 0
-        op2 = self.get_input_by_name("操作数2").get_data() or 0
-        operation = self._get_config().get("operation", "add")
-        
-        if operation == "add":
-            result = op1 + op2
-        elif operation == "subtract":
-            result = op1 - op2
-        elif operation == "multiply":
-            result = op1 * op2
-        elif operation == "divide":
-            result = op1 / op2 if op2 != 0 else 0
-        else:
-            result = 0
-        
-        self.get_output_by_name("结果").set_data(result)
-```
-
-### 9.2 加载自定义节点脚本
-
-```python
-# custom_nodes.py
-from pyqt6_editor.node import Node, PortType
-from pyqt6_editor.registry import register_node
-
-@register_node("自定义节点", "#4CAF50", "计数器节点", "一个简单的计数器节点")
-class CounterNode(Node):
-    def _init_ports(self):
-        self.add_input("重置", PortType.EXEC, "exec")
-        self.add_input("增加", PortType.EXEC, "exec")
-        self.add_output("值", PortType.DATA, "number")
-    
-    def _get_config(self):
-        return {"count": 0}
-    
-    def execute(self):
-        config = self._get_config()
-        # 这里可以根据输入端口的触发情况来执行不同的逻辑
-        # 简化示例，直接返回当前值
-        self.get_output_by_name("值").set_data(config.get("count", 0))
-```
-
-然后在编辑器中通过 "工具" -> "加载 Python 脚本" 菜单加载此脚本。
-
-## 10. 常见问题与解决方案
-
-### 10.1 节点不显示在面板中
+### 9.1 节点不显示在面板中
 
 **原因**：
 - 节点类没有使用 `@register_node` 装饰器
 - 装饰器参数不正确
-- 脚本没有被正确加载
 
 **解决方案**：
 - 确保使用 `@register_node` 装饰器
 - 检查装饰器参数是否正确
 - 检查脚本是否有语法错误
 
-### 10.2 连接无法创建
+### 9.2 连接无法创建
 
 **原因**：
 - 端口类型不匹配（EXEC 端口只能连接到 EXEC 端口）
@@ -396,7 +306,7 @@ class CounterNode(Node):
 - 确保端口类型匹配
 - 先删除现有连接再创建新连接
 
-### 10.3 代码生成失败
+### 9.3 代码生成失败
 
 **原因**：
 - 节点之间的连接不完整
@@ -408,19 +318,7 @@ class CounterNode(Node):
 - 检查节点配置是否正确
 - 简化节点图结构
 
-### 10.4 模组加载失败
-
-**原因**：
-- 模组文件格式不正确
-- 模组依赖缺失
-- 模组代码有语法错误
-
-**解决方案**：
-- 检查模组文件格式
-- 确保所有依赖都已安装
-- 检查模组代码是否有语法错误
-
-## 11. 性能优化建议
+## 10. 性能优化建议
 
 1. **减少节点数量**：节点数量过多会影响性能，尽量使用组合节点减少节点总数。
 
@@ -438,17 +336,16 @@ class CounterNode(Node):
 
 8. **定期保存**：定期保存项目，避免意外丢失数据。
 
-## 12. 版本历史
+## 11. 版本历史
 
 | 版本 | 日期 | 描述 |
 |------|------|------|
 | 0.1.0 | 2026-04-18 | 初始版本，包含基本功能 |
 | 0.1.1 | 2026-04-20 | 添加撤销/重做功能 |
 | 0.1.2 | 2026-04-22 | 添加节点版本控制 |
-| 0.1.3 | 2026-04-24 | 添加 Python 脚本接口 |
-| 0.1.4 | 2026-04-26 | 优化性能和用户体验 |
+| 0.1.3 | 2026-04-24 | 优化性能和用户体验 |
 
-## 13. 联系方式
+## 12. 联系方式
 
 如果您有任何问题或建议，请通过以下方式联系我们：
 

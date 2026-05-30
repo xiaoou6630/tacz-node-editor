@@ -89,7 +89,7 @@ block/
 │   ├── crypto.py          # 加密系统
 │   ├── protection.py      # 反调试/保护
 │   └── logger.py          # 日志系统
-├── mods/                  # 自定义模组目录
+├── mods/                  # 自定义模组目录（已废弃，功能已移除）
 ├── venv/                  # 虚拟环境（不提交）
 ├── build_single_file.py   # PyInstaller 打包脚本
 ├── config.json            # 配置文件
