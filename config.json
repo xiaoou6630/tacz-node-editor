@@ -1,0 +1,14 @@
+{
+    "grid_size": 20,
+    "show_grid": true,
+    "auto_save": false,
+    "auto_save_interval": 60,
+    "last_project": "",
+    "recent_projects": [],
+    "window_geometry": null,
+    "splitter_sizes": null,
+    "shortcuts": {},
+    "editor_word_wrap": false,
+    "editor_font_size": 12,
+    "editor_tab_size": 4
+}
