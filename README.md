@@ -205,7 +205,7 @@ python build_nuitka.py
 
 ## 许可证
 
-保留所有权利。未经授权，禁止复制、修改、分发。
+本项目采用 [MIT License](LICENSE) 开源协议。
 
 ---
 
