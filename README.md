@@ -178,7 +178,42 @@ python build_single_file.py
 - UPX 压缩
 - 单文件分发
 
-### 方式二：Nuitka（需 Visual Studio）
+### 方式二：Nuitka（原生编译，体积小、启动快）
+
+Nuitka 会把 Python 代码编译为 C++，再调用 MSVC 编译为原生 exe。
+
+#### 环境要求（缺一不可）
+
+**1. MSVC 编译器（cl.exe）**
+
+下载地址：[Visual Studio Build Tools 2022](https://visualstudio.microsoft.com/zh-hans/visual-cpp-build-tools/)
+
+安装时勾选：
+- ✅ **C++ 桌面开发**（"Desktop development with C++"）
+- ✅ **MSVC v143 生成工具**
+- ✅ **Windows 11 SDK**（或 Windows 10 SDK）
+
+安装完成后，确认能找到 `cl.exe`，例如：
+```
+"C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\*\bin\Hostx64\x64\cl.exe"
+```
+
+**2. Windows SDK**
+
+上面安装 "C++ 桌面开发" 时会自动包含。Nuitka 会自动检测。
+
+**3. Nuitka 包**
+
+```powershell
+.\venv\Scripts\Activate.ps1
+pip install nuitka
+```
+
+**4. UPX（可选，用于压缩）**
+
+已包含在项目中 `upx/` 目录，无需额外安装。
+
+#### 编译步骤
 
 ```powershell
 .\venv\Scripts\Activate.ps1
@@ -187,7 +222,38 @@ pip install nuitka
 python build_nuitka.py
 ```
 
-生成文件位于 `nuitka_dist/TLM编辑器.exe`
+生成文件位于 `output/nuitka_dist/TLM编辑器.exe`
+
+#### 编译参数说明
+
+`build_nuitka.py` 中使用的主要参数：
+
+| 参数 | 作用 |
+|------|------|
+| `--standalone` | 独立运行模式，包含所有依赖 |
+| `--onefile` | 打包为单个 exe |
+| `--windows-console-mode=disable` | 隐藏控制台窗口 |
+| `--lto=yes` | 链接时优化，减小体积 |
+| `--include-package=cryptography` | 强制包含加密库 |
+| `--include-package=PyQt6` | 强制包含 PyQt6 |
+| `--nofollow-import-to=...` | 排除不需要的包，减小体积 |
+
+#### 常见问题
+
+**问题：提示找不到 cl.exe**
+
+Nuitka 默认通过 `--msvc=latest` 自动检测。如果失败，需要先运行 VS 开发者命令行（"x64 Native Tools Command Prompt"）激活环境变量，再执行构建。
+
+**问题：链接错误 LNK1104 / 找不到库**
+
+确认 Windows SDK 已正确安装。可以在 PowerShell 中运行以下命令检查：
+```powershell
+# 检查 MSVC
+Get-ChildItem "C:\Program Files\Microsoft Visual Studio" -Recurse -Filter "cl.exe" -ErrorAction SilentlyContinue
+
+# 检查 Windows SDK
+Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Lib" -ErrorAction SilentlyContinue
+```
 
 ---
 
