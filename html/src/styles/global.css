@@ -1,0 +1,24 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'PingFang SC','Noto Sans SC',sans-serif; }
+#app { width: 100%; height: 100%; }
+
+/* Blockly overrides */
+.blocklyTreeRow { border-radius: 8px !important; margin: 2px 4px !important; padding: 6px 8px !important; min-height: 36px !important; }
+.blocklyTreeRow:hover { background: rgba(77,150,255,0.15) !important; }
+.blocklyTreeSelected { background: rgba(77,150,255,0.25) !important; }
+.blocklyTreeLabel { font-family: 'PingFang SC','Noto Sans SC',sans-serif !important; font-weight: 600 !important; font-size: 13px !important; white-space: nowrap !important; }
+.blocklyToolboxDiv { background: #2D2D3F !important; border-right: 1px solid #45475A !important; }
+.blocklyFlyout { background: #363649 !important; }
+.blocklyMainBackground { stroke: none !important; }
+.blocklyScrollbarHandle { fill: #45475A !important; }
+.blocklyScrollbarBackground { fill: transparent !important; }
+.blocklyTooltipDiv { background: rgba(0,0,0,0.85) !important; border-radius: 8px !important; font-size: 12px !important; }
+.blocklyInsertionMarker { fill: #4D96FF !important; stroke: #4D96FF !important; opacity: 0.4 !important; }
+.blocklyZoom>image, .blocklyZoom>svg>image { opacity: .6; }
+.blocklyZoom>image:hover, .blocklyZoom>svg>image:hover { opacity: .9; }
+
+/* Context menu */
+.blocklyContextMenu { background: #2D2D3F !important; border: 1px solid #45475A !important; border-radius: 12px !important; box-shadow: 0 8px 24px rgba(0,0,0,0.3) !important; padding: 6px !important; }
+.blocklyContextMenu .blocklyMenuItem { border-radius: 8px !important; padding: 8px 16px !important; font-size: 13px !important; color: #CDD6F4 !important; }
+.blocklyContextMenu .blocklyMenuItem:hover { background: #45475A !important; }
+.blocklyContextMenu .blocklyMenuItemDisabled { color: #666 !important; }
