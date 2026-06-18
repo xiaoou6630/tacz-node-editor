@@ -29,6 +29,7 @@ onMounted(() => {
       extensions: [
         basicSetup,
         oneDark,
+        EditorView.editable.of(false),
         EditorView.theme({
           '&': { backgroundColor: '#1E1E2E', height: '100%' },
           '.cm-scroller': { fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '13px' },
