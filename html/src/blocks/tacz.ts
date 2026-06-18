@@ -90,6 +90,7 @@ const eventTypes: [string, string, string][] = [
 eventTypes.forEach(([id, zh, en]) => {
   Blockly.Blocks[`event_${id}`] = {
     init() {
+      this.setPreviousStatement(false)
       this.appendDummyInput().appendField(`🎯 ${_b(zh, en)}`)
       this.appendStatementInput('BODY')
       this.setNextStatement(true)
