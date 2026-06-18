@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NodeForge - TACZ Lua 状态机编辑器</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ==================== Top Bar ==================== -->
+  <header class="top-bar">
+    <div class="top-bar-left">
+      <div class="top-bar-logo">
+        <i class="fa-solid fa-cubes"></i>
+      </div>
+      <div class="top-bar-title">
+        Node<span>Forge</span> — TACZ Lua 状态机编辑器
+      </div>
+    </div>
+    <div class="top-bar-right">
+      <input
+        class="project-name-input"
+        type="text"
+        id="projectName"
+        maxlength="15"
+        placeholder="项目名称"
+        value="我的状态机"
+      >
+    </div>
+  </header>
+
+  <!-- ==================== Main Layout ==================== -->
+  <div class="main-layout">
+
+    <!-- ========== Left Panel: Toolbox ========== -->
+    <aside class="toolbox-panel">
+      <div class="toolbox-header">
+        <i class="fa-solid fa-toolbox"></i> 节点工具箱
+      </div>
+      <div class="toolbox-scroll" id="toolboxScroll">
+
+        <!-- Category template: populated by JS -->
+        <!-- Structure: .category-item > .category-header + .category-body > .node-btn * N -->
+
+      </div>
+    </aside>
+
+    <!-- ========== Center: Canvas ========== -->
+    <main class="canvas-container" id="canvasContainer">
+      <div class="canvas-grid"></div>
+      <svg id="canvasSvg" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <!-- Arrow marker for connections -->
+          <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="var(--accent-lavender, #B4BEFE)" opacity="0.7" />
+          </marker>
+          <!-- Drop shadow filter -->
+          <filter id="nodeShadow" x="-10%" y="-10%" width="130%" height="130%">
+            <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.35" />
+          </filter>
+        </defs>
+        <!-- Connections layer -->
+        <g id="connectionsLayer"></g>
+        <!-- Nodes layer -->
+        <g id="nodesLayer"></g>
+        <!-- Temporary drag line -->
+        <path id="dragLine" class="connection-line dragging" d="" style="display:none" />
+      </svg>
+
+      <div class="canvas-zoom-info">
+        <i class="fa-solid fa-magnifying-glass"></i> 100%
+      </div>
+
+      <!-- Mini map placeholder -->
+      <div class="minimap"></div>
+    </main>
+
+    <!-- ========== Right Panel: Code Output ========== -->
+    <aside class="code-panel" id="codePanel">
+      <div class="code-panel-header">
+        <span class="label"><i class="fa-solid fa-code"></i> Lua 输出</span>
+        <div class="actions">
+          <button title="复制代码" id="copyCodeBtn"><i class="fa-regular fa-clipboard"></i></button>
+          <button title="导出文件" id="exportCodeBtn"><i class="fa-solid fa-download"></i></button>
+          <button title="刷新" id="refreshCodeBtn"><i class="fa-solid fa-rotate"></i></button>
+        </div>
+      </div>
+      <div class="code-output" id="codeOutput">
+        <div class="code-empty-state">
+          <i class="fa-regular fa-file-code"></i>
+          <p>将节点拖入画布并连接，<br>Lua 代码将自动生成于此</p>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- ==================== Node Config Modal ==================== -->
+  <div class="modal-overlay" id="nodeModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="modalTitle">节点配置</h3>
+        <button class="close-btn" id="modalCloseBtn">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <!-- Dynamic form fields populated by JS -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" id="modalCancelBtn">取消</button>
+        <button class="btn-confirm" id="modalConfirmBtn">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== Context Menu ==================== -->
+  <div class="context-menu" id="contextMenu">
+    <div class="context-menu-item" data-action="edit">
+      <i class="fa-solid fa-pen"></i> 编辑节点
+    </div>
+    <div class="context-menu-item" data-action="duplicate">
+      <i class="fa-regular fa-copy"></i> 复制节点
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item danger" data-action="delete">
+      <i class="fa-regular fa-trash-can"></i> 删除
+    </div>
+  </div>
+
+  <!-- ==================== JavaScript ==================== -->
+  <script src="nodes.js"></script>
+  <script src="codegen.js"></script>
+  <script src="app.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      // ============================================================
+      //  Data Definitions
+      // ============================================================
+
+      const CATEGORIES = [
+        {
+          name: '状态定义',
+          icon: 'fa-regular fa-circle',
+          nodes: [
+            { label: '初始状态', type: 'start_state', icon: 'fa-solid fa-play' },
+            { label: '普通状态', type: 'normal_state', icon: 'fa-regular fa-circle' },
+            { label: '结束状态', type: 'end_state', icon: 'fa-solid fa-stop' },
+            { label: '状态组',    type: 'state_group', icon: 'fa-regular fa-object-group' },
+          ]
+        },
+        {
+          name: '输入事件',
+          icon: 'fa-regular fa-keyboard',
+          nodes: [
+            { label: '按键事件',    type: 'key_event',    icon: 'fa-regular fa-keyboard' },
+            { label: '鼠标事件',    type: 'mouse_event',   icon: 'fa-regular fa-mouse-pointer' },
+            { label: '自定义事件',  type: 'custom_event',  icon: 'fa-regular fa-bell' },
+            { label: '时间事件',    type: 'time_event',    icon: 'fa-regular fa-clock' },
+          ]
+        },
+        {
+          name: '动画控制',
+          icon: 'fa-solid fa-film',
+          nodes: [
+            { label: '播放动画',      type: 'play_anim',    icon: 'fa-solid fa-play' },
+            { label: '停止动画',      type: 'stop_anim',    icon: 'fa-solid fa-stop' },
+            { label: '切换动画',      type: 'switch_anim',  icon: 'fa-solid fa-arrows-rotate' },
+            { label: '设置动画参数',  type: 'set_anim_param', icon: 'fa-solid fa-sliders' },
+          ]
+        },
+        {
+          name: '条件检查',
+          icon: 'fa-solid fa-code-branch',
+          nodes: [
+            { label: '条件分支',   type: 'condition',     icon: 'fa-solid fa-code-branch' },
+            { label: '状态检查',   type: 'state_check',   icon: 'fa-regular fa-circle-check' },
+            { label: '变量检查',   type: 'var_check',     icon: 'fa-regular fa-rectangle-list' },
+            { label: '空值检查',   type: 'null_check',    icon: 'fa-regular fa-circle-question' },
+          ]
+        },
+        {
+          name: '动作操作',
+          icon: 'fa-solid fa-bolt',
+          nodes: [
+            { label: '设置变量',   type: 'set_var',    icon: 'fa-solid fa-pen' },
+            { label: '调用函数',   type: 'call_func',  icon: 'fa-solid fa-cube' },
+            { label: '发送消息',   type: 'send_msg',   icon: 'fa-regular fa-paper-plane' },
+            { label: '日志输出',   type: 'log_output', icon: 'fa-solid fa-terminal' },
+          ]
+        },
+        {
+          name: '轨道系统',
+          icon: 'fa-solid fa-road',
+          nodes: [
+            { label: '创建轨道',   type: 'create_track', icon: 'fa-solid fa-plus' },
+            { label: '删除轨道',   type: 'remove_track', icon: 'fa-solid fa-minus' },
+            { label: '轨道变换',   type: 'track_xform',  icon: 'fa-solid fa-up-down-left-right' },
+          ]
+        },
+        {
+          name: '逻辑控制',
+          icon: 'fa-solid fa-diagram-project',
+          nodes: [
+            { label: '顺序执行',   type: 'sequence',  icon: 'fa-solid fa-arrow-right' },
+            { label: '循环执行',   type: 'loop',      icon: 'fa-solid fa-rotate' },
+            { label: '并行执行',   type: 'parallel',  icon: 'fa-solid fa-bezier-curve' },
+            { label: '延迟执行',   type: 'delay',     icon: 'fa-regular fa-hourglass' },
+          ]
+        },
+        {
+          name: '动画模式',
+          icon: 'fa-solid fa-wand-magic-sparkles',
+          nodes: [
+            { label: '混合模式',   type: 'blend_mode',  icon: 'fa-solid fa-blender' },
+            { label: '叠加模式',   type: 'overlay_mode', icon: 'fa-solid fa-layer-group' },
+            { label: '过渡模式',   type: 'transition',   icon: 'fa-solid fa-right-left' },
+          ]
+        },
+        {
+          name: '数学运算',
+          icon: 'fa-solid fa-calculator',
+          nodes: [
+            { label: '数值运算',   type: 'math_op',    icon: 'fa-solid fa-plus-minus' },
+            { label: '比较运算',   type: 'compare_op', icon: 'fa-solid fa-equals' },
+            { label: '逻辑运算',   type: 'logic_op',   icon: 'fa-solid fa-toggle-on' },
+            { label: '字符串操作', type: 'string_op',  icon: 'fa-solid fa-font' },
+          ]
+        }
+      ];
+
+      // Default fields for each node type (populated on creation)
+      const NODE_FIELDS = {
+        start_state:   { label: '初始状态',     props: { name: 'entry', is_entry: true } },
+        normal_state:  { label: '普通状态',     props: { name: 'idle', on_enter: '', on_exit: '' } },
+        end_state:     { label: '结束状态',     props: { name: 'exit', is_final: true } },
+        state_group:   { label: '状态组',       props: { name: 'group', states: [] } },
+        key_event:     { label: '按键事件',     props: { key: 'space', action: 'press' } },
+        mouse_event:   { label: '鼠标事件',     props: { button: 'left', action: 'click' } },
+        custom_event:  { label: '自定义事件',   props: { event_name: 'my_event', payload: '' } },
+        time_event:    { label: '时间事件',     props: { delay_ms: 1000, repeat: false } },
+        play_anim:     { label: '播放动画',     props: { anim_name: '', blend: 0.2, speed: 1.0 } },
+        stop_anim:     { label: '停止动画',     props: { anim_name: '', fade: 0.1 } },
+        switch_anim:   { label: '切换动画',     props: { from: '', to: '', transition: 'blend' } },
+        set_anim_param: { label: '设置动画参数', props: { param: '', value: 0.0 } },
+        condition:     { label: '条件分支',     props: { expression: '', true_branch: '', false_branch: '' } },
+        state_check:   { label: '状态检查',     props: { target_state: '', expected: 'active' } },
+        var_check:     { label: '变量检查',     props: { var_name: '', operator: '==', value: '' } },
+        null_check:    { label: '空值检查',     props: { var_name: '' } },
+        set_var:       { label: '设置变量',     props: { var_name: 'x', value: 0, type: 'number' } },
+        call_func:     { label: '调用函数',     props: { func_name: '', args: [] } },
+        send_msg:      { label: '发送消息',     props: { channel: '', data: '', target: 'all' } },
+        log_output:    { label: '日志输出',     props: { level: 'info', message: '' } },
+        create_track:  { label: '创建轨道',     props: { track_name: '', type: 'default' } },
+        remove_track:  { label: '删除轨道',     props: { track_name: '' } },
+        track_xform:   { label: '轨道变换',     props: { track: '', position: [0,0,0], rotation: [0,0,0] } },
+        sequence:      { label: '顺序执行',     props: { steps: [] } },
+        loop:          { label: '循环执行',     props: { count: 1, body: [] } },
+        parallel:      { label: '并行执行',     props: { branches: [] } },
+        delay:         { label: '延迟执行',     props: { delay_ms: 500 } },
+        blend_mode:    { label: '混合模式',     props: { mode: 'lerp', weight: 0.5 } },
+        overlay_mode:  { label: '叠加模式',     props: { base: '', overlay: '', intensity: 1.0 } },
+        transition:    { label: '过渡模式',     props: { from_state: '', to_state: '', duration: 0.3 } },
+        math_op:       { label: '数值运算',     props: { a: 0, b: 0, op: '+' } },
+        compare_op:    { label: '比较运算',     props: { a: 0, b: 0, op: '>' } },
+        logic_op:      { label: '逻辑运算',     props: { a: true, b: true, op: 'AND' } },
+        string_op:     { label: '字符串操作',   props: { a: '', b: '', op: 'concat' } },
+      };
+
+      // ============================================================
+      //  State
+      // ============================================================
+
+      let nodeIdCounter = 0;
+      const nodes = new Map();     // id -> node object
+      const connections = [];      // { id, fromNodeId, fromPort, toNodeId, toPort }
+      let selectedNodeId = null;
+      let connectState = null;     // { fromNodeId, fromPort } while dragging a connection
+      let dragNodeId = null;
+
+      const SVG_NS = 'http://www.w3.org/2000/svg';
+      const NODE_W = 160;
+      const NODE_H = 60;
+      const HEADER_H = 28;
+      const PORT_R = 4;
+
+      // ============================================================
+      //  DOM References
+      // ============================================================
+
+      const $ = (id) => document.getElementById(id);
+      const toolboxScroll = $('toolboxScroll');
+      const canvasSvg = $('canvasSvg');
+      const nodesLayer = $('nodesLayer');
+      const connectionsLayer = $('connectionsLayer');
+      const dragLine = $('dragLine');
+      const codeOutput = $('codeOutput');
+      const nodeModal = $('nodeModal');
+      const modalTitle = $('modalTitle');
+      const modalBody = $('modalBody');
+      const modalCloseBtn = $('modalCloseBtn');
+      const modalCancelBtn = $('modalCancelBtn');
+      const modalConfirmBtn = $('modalConfirmBtn');
+      const contextMenu = $('contextMenu');
+      const projectNameInput = $('projectName');
+
+      // ============================================================
+      //  Build Toolbox
+      // ============================================================
+
+      function buildToolbox() {
+        CATEGORIES.forEach((cat, idx) => {
+          const item = document.createElement('div');
+          item.className = 'category-item';
+
+          const header = document.createElement('div');
+          header.className = 'category-header';
+          header.dataset.category = idx;
+          header.innerHTML = `
+            <i class="fa-solid fa-chevron-down"></i>
+            <span class="cat-icon"><i class="${cat.icon}"></i></span>
+            ${cat.name}
+          `;
+
+          const body = document.createElement('div');
+          body.className = 'category-body';
+
+          cat.nodes.forEach((n) => {
+            const btn = document.createElement('div');
+            btn.className = 'node-btn';
+            btn.draggable = true;
+            btn.dataset.nodeType = n.type;
+            btn.innerHTML = `
+              <span class="port-indicator exec"></span>
+              <i class="${n.icon}" style="font-size:11px;width:14px;text-align:center;"></i>
+              ${n.label}
+            `;
+            btn.addEventListener('dragstart', onToolboxDragStart);
+            body.appendChild(btn);
+          });
+
+          header.addEventListener('click', () => {
+            header.classList.toggle('collapsed');
+            body.classList.toggle('collapsed');
+          });
+
+          item.appendChild(header);
+          item.appendChild(body);
+          toolboxScroll.appendChild(item);
+        });
+      }
+
+      // ============================================================
+      //  Canvas Node Rendering
+      // ============================================================
+
+      function createNodeEl(node) {
+        const g = document.createElementNS(SVG_NS, 'g');
+        g.classList.add('node-group');
+        g.dataset.nodeId = node.id;
+
+        // Background
+        const bg = document.createElementNS(SVG_NS, 'rect');
+        bg.classList.add('node-bg');
+        bg.setAttribute('width', NODE_W);
+        bg.setAttribute('height', NODE_H);
+        bg.setAttribute('filter', 'url(#nodeShadow)');
+
+        // Header bg (top rounded portion)
+        const hbg = document.createElementNS(SVG_NS, 'rect');
+        hbg.classList.add('node-header-bg');
+        hbg.setAttribute('width', NODE_W);
+        hbg.setAttribute('height', HEADER_H);
+        hbg.setAttribute('x', 0);
+        hbg.setAttribute('y', 0);
+        // Clip the bottom of header rect so it blends
+        const headerClip = document.createElementNS(SVG_NS, 'clipPath');
+        headerClip.id = 'headerClip-' + node.id;
+        const clipRect = document.createElementNS(SVG_NS, 'rect');
+        clipRect.setAttribute('width', NODE_W);
+        clipRect.setAttribute('height', HEADER_H);
+        clipRect.setAttribute('rx', 12);
+        clipRect.setAttribute('ry', 12);
+        headerClip.appendChild(clipRect);
+        const defs = canvasSvg.querySelector('defs');
+        defs.appendChild(headerClip);
+        hbg.setAttribute('clip-path', 'url(#headerClip-' + node.id + ')');
+
+        // Header text
+        const ht = document.createElementNS(SVG_NS, 'text');
+        ht.classList.add('node-header-text');
+        ht.setAttribute('x', NODE_W / 2);
+        ht.setAttribute('y', HEADER_H / 2);
+        ht.textContent = node.data.label || node.type;
+
+        // Body text (shows key prop)
+        const bt = document.createElementNS(SVG_NS, 'text');
+        bt.classList.add('node-body-text');
+        bt.setAttribute('x', NODE_W / 2);
+        bt.setAttribute('y', HEADER_H + (NODE_H - HEADER_H) / 2);
+        bt.textContent = getNodeBodyText(node);
+
+        g.appendChild(bg);
+        g.appendChild(hbg);
+        g.appendChild(ht);
+        g.appendChild(bt);
+
+        // Ports
+        // Exec input port (left)
+        const execIn = createPort('exec', 'in', 0, HEADER_H / 2);
+        // Exec output port (right)
+        const execOut = createPort('exec', 'out', NODE_W, HEADER_H / 2);
+
+        // Data ports (bottom area)
+        const dataIn = createPort('data', 'in', 0, NODE_H - 12);
+        const dataOut = createPort('data', 'out', NODE_W, NODE_H - 12);
+
+        g.appendChild(execIn);
+        g.appendChild(execOut);
+        g.appendChild(dataIn);
+        g.appendChild(dataOut);
+
+        // Store port references on node object
+        node.ports = {
+          execIn: { el: execIn, cx: 0, cy: HEADER_H / 2, type: 'exec', dir: 'in' },
+          execOut: { el: execOut, cx: NODE_W, cy: HEADER_H / 2, type: 'exec', dir: 'out' },
+          dataIn: { el: dataIn, cx: 0, cy: NODE_H - 12, type: 'data', dir: 'in' },
+          dataOut: { el: dataOut, cx: NODE_W, cy: NODE_H - 12, type: 'data', dir: 'out' },
+        };
+
+        // Drag-to-move
+        g.addEventListener('mousedown', onNodeMouseDown);
+
+        // Port connection events
+        Object.values(node.ports).forEach((p) => {
+          p.el.addEventListener('mousedown', (e) => onPortMouseDown(e, node, p));
+          p.el.addEventListener('mouseup', (e) => onPortMouseUp(e, node, p));
+        });
+
+        // Double-click to configure
+        g.addEventListener('dblclick', () => openNodeModal(node));
+
+        // Context menu
+        g.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          showContextMenu(e.clientX, e.clientY, node);
+        });
+
+        return g;
+      }
+
+      function createPort(type, dir, cx, cy) {
+        const g = document.createElementNS(SVG_NS, 'g');
+        const circle = document.createElementNS(SVG_NS, 'circle');
+        circle.classList.add('port-dot');
+        circle.classList.add(type);
+        circle.setAttribute('cx', cx);
+        circle.setAttribute('cy', cy);
+        circle.setAttribute('r', PORT_R);
+        g.appendChild(circle);
+        return g;
+      }
+
+      function getNodeBodyText(node) {
+        const p = node.data.props || {};
+        const keys = Object.keys(p);
+        if (keys.length === 0) return '';
+        const first = keys[0];
+        const val = p[first];
+        return first + ': ' + (typeof val === 'object' ? JSON.stringify(val) : String(val));
+      }
+
+      // ============================================================
+      //  Node Add / Remove
+      // ============================================================
+
+      function addNode(type, x, y) {
+        const info = NODE_FIELDS[type];
+        if (!info) return null;
+        const id = ++nodeIdCounter;
+        const node = {
+          id: id,
+          type: type,
+          x: x,
+          y: y,
+          data: JSON.parse(JSON.stringify(info)),
+          el: null,
+          ports: {},
+        };
+        const el = createNodeEl(node);
+        el.setAttribute('transform', 'translate(' + x + ',' + y + ')');
+        nodesLayer.appendChild(el);
+        node.el = el;
+        nodes.set(id, node);
+        selectNode(id);
+        updateCode();
+        return node;
+      }
+
+      function removeNode(id) {
+        const node = nodes.get(id);
+        if (!node) return;
+        // Remove connections
+        for (let i = connections.length - 1; i >= 0; i--) {
+          const c = connections[i];
+          if (c.fromNodeId === id || c.toNodeId === id) {
+            removeConnectionLine(c.id);
+            connections.splice(i, 1);
+          }
+        }
+        node.el.remove();
+        nodes.delete(id);
+        if (selectedNodeId === id) selectedNodeId = null;
+        updateCode();
+      }
+
+      function duplicateNode(id) {
+        const src = nodes.get(id);
+        if (!src) return;
+        const copy = addNode(src.type, src.x + 30, src.y + 30);
+        if (copy) {
+          copy.data = JSON.parse(JSON.stringify(src.data));
+          updateNodeVisual(copy);
+          updateCode();
+        }
+      }
+
+      function updateNodeVisual(node) {
+        if (!node.el) return;
+        const texts = node.el.querySelectorAll('.node-header-text, .node-body-text');
+        if (texts[0]) texts[0].textContent = node.data.label || node.type;
+        if (texts[1]) texts[1].textContent = getNodeBodyText(node);
+      }
+
+      // ============================================================
+      //  Selection
+      // ============================================================
+
+      function selectNode(id) {
+        document.querySelectorAll('.node-group.selected').forEach((el) => el.classList.remove('selected'));
+        selectedNodeId = id;
+        if (id) {
+          const node = nodes.get(id);
+          if (node && node.el) node.el.classList.add('selected');
+        }
+      }
+
+      // ============================================================
+      //  Connections
+      // ============================================================
+
+      function addConnection(fromNodeId, fromPort, toNodeId, toPort) {
+        // Avoid duplicate
+        const dup = connections.some(
+          (c) => c.fromNodeId === fromNodeId && c.fromPort === fromPort &&
+                 c.toNodeId === toNodeId && c.toPort === toPort
+        );
+        if (dup) return;
+
+        const conn = {
+          id: 'conn-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+          fromNodeId,
+          fromPort,
+          toNodeId,
+          toPort,
+        };
+        connections.push(conn);
+
+        const path = createConnectionPath(conn);
+        conn.el = path;
+        connectionsLayer.appendChild(path);
+        updateCode();
+      }
+
+      function createConnectionPath(conn) {
+        const fromNode = nodes.get(conn.fromNodeId);
+        const toNode = nodes.get(conn.toNodeId);
+        if (!fromNode || !toNode) return null;
+
+        const fp = fromNode.ports[conn.fromPort];
+        const tp = toNode.ports[conn.toPort];
+        if (!fp || !tp) return null;
+
+        const x1 = fromNode.x + fp.cx;
+        const y1 = fromNode.y + fp.cy;
+        const x2 = toNode.x + tp.cx;
+        const y2 = toNode.y + tp.cy;
+
+        const dx = Math.abs(x2 - x1) * 0.5;
+        const cp1x = x1 + dx;
+        const cp1y = y1;
+        const cp2x = x2 - dx;
+        const cp2y = y2;
+
+        const path = document.createElementNS(SVG_NS, 'path');
+        path.classList.add('connection-line');
+        path.setAttribute('d', 'M' + x1 + ',' + y1 + ' C' + cp1x + ',' + cp1y + ' ' + cp2x + ',' + cp2y + ' ' + x2 + ',' + y2);
+        path.dataset.connId = conn.id;
+
+        // Click to delete
+        path.addEventListener('click', () => {
+          removeConnection(conn.id);
+        });
+
+        return path;
+      }
+
+      function removeConnection(connId) {
+        for (let i = connections.length - 1; i >= 0; i--) {
+          if (connections[i].id === connId) {
+            removeConnectionLine(connId);
+            connections.splice(i, 1);
+            break;
+          }
+        }
+        updateCode();
+      }
+
+      function removeConnectionLine(connId) {
+        const el = connectionsLayer.querySelector('[data-conn-id="' + connId + '"]');
+        if (el) el.remove();
+      }
+
+      function rebuildAllConnections() {
+        connectionsLayer.innerHTML = '';
+        connections.forEach((conn) => {
+          const path = createConnectionPath(conn);
+          if (path) {
+            conn.el = path;
+            connectionsLayer.appendChild(path);
+          }
+        });
+      }
+
+      // ============================================================
+      //  Drag from Toolbox
+      // ============================================================
+
+      function onToolboxDragStart(e) {
+        e.dataTransfer.setData('text/plain', e.target.closest('.node-btn').dataset.nodeType);
+        e.dataTransfer.effectAllowed = 'copy';
+      }
+
+      // ============================================================
+      //  Canvas Drop
+      // ============================================================
+
+      canvasSvg.addEventListener('dragover', (e) => e.preventDefault());
+      canvasSvg.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const type = e.dataTransfer.getData('text/plain');
+        if (!type) return;
+        const rect = canvasSvg.getBoundingClientRect();
+        const x = e.clientX - rect.left - NODE_W / 2;
+        const y = e.clientY - rect.top - NODE_H / 2;
+        addNode(type, Math.max(0, x), Math.max(0, y));
+      });
+
+      // ============================================================
+      //  Node Mouse Move (Drag Node)
+      // ============================================================
+
+      function onNodeMouseDown(e) {
+        if (e.button !== 0) return;
+        const g = e.currentTarget;
+        const nodeId = parseInt(g.dataset.nodeId);
+        const node = nodes.get(nodeId);
+        if (!node) return;
+
+        selectNode(nodeId);
+
+        // Check if we clicked on a port (ports are children) — handled separately
+        if (e.target.closest('.port-dot')) return;
+
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const origX = node.x;
+        const origY = node.y;
+        dragNodeId = nodeId;
+
+        const onMove = (ev) => {
+          const dx = ev.clientX - startX;
+          const dy = ev.clientY - startY;
+          node.x = Math.max(0, origX + dx);
+          node.y = Math.max(0, origY + dy);
+          node.el.setAttribute('transform', 'translate(' + node.x + ',' + node.y + ')');
+          // Update connections
+          connections.forEach((c) => {
+            if (c.fromNodeId === nodeId || c.toNodeId === nodeId) {
+              const path = c.el;
+              if (!path) return;
+              const fromNode = nodes.get(c.fromNodeId);
+              const toNode = nodes.get(c.toNodeId);
+              if (!fromNode || !toNode) return;
+              const fp = fromNode.ports[c.fromPort];
+              const tp = toNode.ports[c.toPort];
+              if (!fp || !tp) return;
+              const x1 = fromNode.x + fp.cx;
+              const y1 = fromNode.y + fp.cy;
+              const x2 = toNode.x + tp.cx;
+              const y2 = toNode.y + tp.cy;
+              const dx2 = Math.abs(x2 - x1) * 0.5;
+              path.setAttribute('d', 'M' + x1 + ',' + y1 + ' C' + (x1 + dx2) + ',' + y1 + ' ' + (x2 - dx2) + ',' + y2 + ' ' + x2 + ',' + y2);
+            }
+          });
+        };
+
+        const onUp = () => {
+          dragNodeId = null;
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+        };
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      }
+
+      // ============================================================
+      //  Port Connection Dragging
+      // ============================================================
+
+      function onPortMouseDown(e, node, port) {
+        e.stopPropagation();
+        e.preventDefault();
+        if (port.dir !== 'out') return; // only drag from output ports
+        connectState = { fromNodeId: node.id, fromPort: Object.keys(node.ports).find(k => node.ports[k] === port) };
+        dragLine.style.display = 'block';
+        updateDragLine(e.clientX, e.clientY);
+      }
+
+      function onPortMouseUp(e, node, port) {
+        if (!connectState) return;
+        e.stopPropagation();
+        e.preventDefault();
+        if (port.dir !== 'in') { // dropping on input port
+          cancelConnect();
+          return;
+        }
+        const toPortKey = Object.keys(node.ports).find(k => node.ports[k] === port);
+        if (connectState.fromNodeId === node.id) { cancelConnect(); return; }
+        addConnection(connectState.fromNodeId, connectState.fromPort, node.id, toPortKey);
+        cancelConnect();
+      }
+
+      function updateDragLine(cx, cy) {
+        const fromNode = nodes.get(connectState.fromNodeId);
+        if (!fromNode) return;
+        const fp = fromNode.ports[connectState.fromPort];
+        const rect = canvasSvg.getBoundingClientRect();
+        const x1 = fromNode.x + fp.cx;
+        const y1 = fromNode.y + fp.cy;
+        const x2 = cx - rect.left;
+        const y2 = cy - rect.top;
+        const dx = Math.abs(x2 - x1) * 0.5;
+        dragLine.setAttribute('d', 'M' + x1 + ',' + y1 + ' C' + (x1 + dx) + ',' + y1 + ' ' + (x2 - dx) + ',' + y2 + ' ' + x2 + ',' + y2);
+      }
+
+      document.addEventListener('mousemove', (e) => {
+        if (connectState) updateDragLine(e.clientX, e.clientY);
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (connectState) cancelConnect();
+      });
+
+      function cancelConnect() {
+        connectState = null;
+        dragLine.style.display = 'none';
+      }
+
+      // ============================================================
+      //  Context Menu
+      // ============================================================
+
+      let contextMenuNodeId = null;
+
+      function showContextMenu(x, y, node) {
+        contextMenuNodeId = node.id;
+        contextMenu.style.left = x + 'px';
+        contextMenu.style.top = y + 'px';
+        contextMenu.classList.add('active');
+      }
+
+      document.addEventListener('click', (e) => {
+        if (!contextMenu.contains(e.target)) {
+          contextMenu.classList.remove('active');
+        }
+      });
+
+      contextMenu.addEventListener('click', (e) => {
+        const item = e.target.closest('.context-menu-item');
+        if (!item) return;
+        const action = item.dataset.action;
+        const id = contextMenuNodeId;
+        contextMenu.classList.remove('active');
+
+        switch (action) {
+          case 'edit':
+            const node = nodes.get(id);
+            if (node) openNodeModal(node);
+            break;
+          case 'duplicate':
+            duplicateNode(id);
+            break;
+          case 'delete':
+            removeNode(id);
+            break;
+        }
+      });
+
+      // ============================================================
+      //  Node Config Modal
+      // ============================================================
+
+      let editingNode = null;
+
+      function openNodeModal(node) {
+        editingNode = node;
+        modalTitle.textContent = '配置 - ' + (node.data.label || node.type);
+        modalBody.innerHTML = '';
+
+        const props = node.data.props || {};
+        Object.keys(props).forEach((key) => {
+          const val = props[key];
+          const group = document.createElement('div');
+          group.className = 'form-group';
+          const label = document.createElement('label');
+          label.textContent = key;
+          group.appendChild(label);
+
+          if (typeof val === 'boolean') {
+            const sel = document.createElement('select');
+            sel.dataset.key = key;
+            sel.innerHTML = '<option value="true">是</option><option value="false">否</option>';
+            sel.value = val ? 'true' : 'false';
+            group.appendChild(sel);
+          } else if (typeof val === 'number') {
+            const inp = document.createElement('input');
+            inp.type = 'number';
+            inp.step = 'any';
+            inp.dataset.key = key;
+            inp.value = val;
+            group.appendChild(inp);
+          } else if (Array.isArray(val)) {
+            const inp = document.createElement('input');
+            inp.type = 'text';
+            inp.dataset.key = key;
+            inp.value = JSON.stringify(val);
+            inp.placeholder = 'JSON 数组';
+            group.appendChild(inp);
+          } else {
+            const inp = document.createElement('input');
+            inp.type = 'text';
+            inp.dataset.key = key;
+            inp.value = val;
+            group.appendChild(inp);
+          }
+
+          modalBody.appendChild(group);
+        });
+
+        // Also allow editing the label
+        const labelGroup = document.createElement('div');
+        labelGroup.className = 'form-group';
+        const labelLabel = document.createElement('label');
+        labelLabel.textContent = '显示名称';
+        labelGroup.appendChild(labelLabel);
+        const labelInput = document.createElement('input');
+        labelInput.type = 'text';
+        labelInput.dataset.key = '_label';
+        labelInput.value = node.data.label || '';
+        labelGroup.appendChild(labelInput);
+        modalBody.insertBefore(labelGroup, modalBody.firstChild);
+
+        nodeModal.classList.add('active');
+      }
+
+      function closeModal() {
+        nodeModal.classList.remove('active');
+        editingNode = null;
+      }
+
+      function saveModal() {
+        if (!editingNode) return;
+        const inputs = modalBody.querySelectorAll('[data-key]');
+        inputs.forEach((inp) => {
+          const key = inp.dataset.key;
+          if (key === '_label') {
+            editingNode.data.label = inp.value;
+            return;
+          }
+          const currentVal = editingNode.data.props[key];
+          if (typeof currentVal === 'boolean') {
+            editingNode.data.props[key] = inp.value === 'true';
+          } else if (typeof currentVal === 'number') {
+            editingNode.data.props[key] = parseFloat(inp.value) || 0;
+          } else if (Array.isArray(currentVal)) {
+            try { editingNode.data.props[key] = JSON.parse(inp.value); } catch { editingNode.data.props[key] = []; }
+          } else {
+            editingNode.data.props[key] = inp.value;
+          }
+        });
+        updateNodeVisual(editingNode);
+        updateCode();
+        closeModal();
+      }
+
+      modalCloseBtn.addEventListener('click', closeModal);
+      modalCancelBtn.addEventListener('click', closeModal);
+      modalConfirmBtn.addEventListener('click', saveModal);
+      nodeModal.addEventListener('click', (e) => {
+        if (e.target === nodeModal) closeModal();
+      });
+
+      // ============================================================
+      //  Code Generation (Mock Lua)
+      // ============================================================
+
+      function updateCode() {
+        const lines = generateLua();
+        codeOutput.innerHTML = '';
+
+        if (lines.length === 0) {
+          codeOutput.innerHTML = `
+            <div class="code-empty-state">
+              <i class="fa-regular fa-file-code"></i>
+              <p>将节点拖入画布并连接，<br>Lua 代码将自动生成于此</p>
+            </div>
+          `;
+          return;
+        }
+
+        const pre = document.createElement('pre');
+        pre.style.margin = '0';
+        pre.style.whiteSpace = 'pre-wrap';
+        pre.style.fontFamily = 'var(--font-mono)';
+        pre.style.fontSize = '12px';
+        pre.style.lineHeight = '1.7';
+
+        lines.forEach((line) => {
+          const span = document.createElement('span');
+          // Simple syntax highlighting
+          const highlighted = line
+            .replace(/(--.*)/g, '<span class="comment">$1</span>')
+            .replace(/\b(function|if|then|else|end|return|for|while|do|local|nil|true|false|and|or|not)\b/g, '<span class="keyword">$1</span>')
+            .replace(/"([^"]*)"/g, '<span class="string">"$1"</span>')
+            .replace(/\b(\d+\.?\d*)\b/g, '<span class="number">$1</span>');
+          span.innerHTML = highlighted;
+          pre.appendChild(span);
+          pre.appendChild(document.createTextNode('\n'));
+        });
+
+        codeOutput.appendChild(pre);
+      }
+
+      function generateLua() {
+        const luaLines = [];
+        const sorted = topoSort();
+
+        luaLines.push('-- ============================================');
+        luaLines.push('-- Generated by NodeForge - TACZ Lua Editor');
+        luaLines.push('-- Project: ' + (projectNameInput.value || 'Untitled'));
+        luaLines.push('-- ============================================');
+        luaLines.push('');
+
+        sorted.forEach((id) => {
+          const node = nodes.get(id);
+          if (!node) return;
+          const label = node.data.label || node.type;
+          const props = node.data.props || {};
+
+          luaLines.push('-- [' + node.id + '] ' + label);
+
+          switch (node.type) {
+            case 'start_state':
+              luaLines.push('function state_' + node.id + '_entry()');
+              luaLines.push('  -- Initial state: ' + (props.name || 'entry'));
+              luaLines.push('  return "' + (props.name || 'entry') + '"');
+              luaLines.push('end');
+              break;
+            case 'normal_state':
+              luaLines.push('function state_' + node.id + '()');
+              luaLines.push('  -- State: ' + (props.name || 'idle'));
+              if (props.on_enter) luaLines.push('  ' + props.on_enter);
+              luaLines.push('  -- ... behavior ...');
+              if (props.on_exit) luaLines.push('  ' + props.on_exit);
+              luaLines.push('end');
+              break;
+            case 'play_anim':
+              luaLines.push('anim_play("' + (props.anim_name || '') + '", {');
+              luaLines.push('  blend = ' + (props.blend || 0.2) + ',');
+              luaLines.push('  speed = ' + (props.speed || 1.0));
+              luaLines.push('})');
+              break;
+            case 'set_var':
+              luaLines.push(props.var_name + ' = ' + JSON.stringify(props.value));
+              break;
+            case 'condition':
+              luaLines.push('if ' + (props.expression || 'true') + ' then');
+              luaLines.push('  -- true branch');
+              luaLines.push('else');
+              luaLines.push('  -- false branch');
+              luaLines.push('end');
+              break;
+            case 'loop':
+              luaLines.push('for i = 1, ' + (props.count || 1) + ' do');
+              luaLines.push('  -- loop body');
+              luaLines.push('end');
+              break;
+            case 'delay':
+              luaLines.push('wait_ms(' + (props.delay_ms || 500) + ')');
+              break;
+            case 'log_output':
+              luaLines.push('log("[' + (props.level || 'info') + '] ' + (props.message || '') + '")');
+              break;
+            default:
+              luaLines.push('-- TODO: implement ' + label);
+          }
+          luaLines.push('');
+        });
+
+        if (sorted.length === 0) return [];
+        return luaLines;
+      }
+
+      // Simple topological sort based on connections
+      function topoSort() {
+        const adj = {};
+        const inDeg = {};
+        nodes.forEach((_, id) => {
+          adj[id] = [];
+          inDeg[id] = 0;
+        });
+        connections.forEach((c) => {
+          if (adj[c.fromNodeId]) {
+            adj[c.fromNodeId].push(c.toNodeId);
+            if (inDeg[c.toNodeId] !== undefined) inDeg[c.toNodeId]++;
+          }
+        });
+        const queue = [];
+        nodes.forEach((_, id) => { if (inDeg[id] === 0) queue.push(id); });
+        const result = [];
+        while (queue.length > 0) {
+          const u = queue.shift();
+          result.push(u);
+          (adj[u] || []).forEach((v) => {
+            inDeg[v]--;
+            if (inDeg[v] === 0) queue.push(v);
+          });
+        }
+        return result;
+      }
+
+      // ============================================================
+      //  Code Panel Buttons
+      // ============================================================
+
+      $('copyCodeBtn').addEventListener('click', () => {
+        const text = codeOutput.textContent;
+        navigator.clipboard.writeText(text).catch(() => {});
+      });
+
+      $('exportCodeBtn').addEventListener('click', () => {
+        const text = codeOutput.textContent;
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (projectNameInput.value || 'state_machine') + '.lua';
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      $('refreshCodeBtn').addEventListener('click', updateCode);
+
+      // ============================================================
+      //  Window Resize
+      // ============================================================
+
+      window.addEventListener('resize', () => {
+        // Connection repaint handled by general update cycle
+      });
+
+      // ============================================================
+      //  Keyboard Shortcuts
+      // ============================================================
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (selectedNodeId && !e.target.closest('input,textarea,select')) {
+            removeNode(selectedNodeId);
+          }
+        }
+        if (e.key === 'Escape') {
+          if (nodeModal.classList.contains('active')) closeModal();
+          contextMenu.classList.remove('active');
+        }
+      });
+
+      // ============================================================
+      //  Canvas Click to deselect
+      // ============================================================
+
+      canvasSvg.addEventListener('click', (e) => {
+        if (e.target === canvasSvg || e.target.tagName === 'svg') {
+          selectNode(null);
+        }
+      });
+
+      // ============================================================
+      //  Init
+      // ============================================================
+
+      buildToolbox();
+
+      // Start with a couple example nodes
+      const n1 = addNode('start_state', 50, 120);
+      if (n1) { n1.data.props.name = 'entry'; n1.data.label = '初始状态'; updateNodeVisual(n1); }
+
+      const n2 = addNode('normal_state', 300, 120);
+      if (n2) { n2.data.props.name = 'idle'; n2.data.label = '空闲状态'; updateNodeVisual(n2); }
+
+      const n3 = addNode('normal_state', 300, 280);
+      if (n3) { n3.data.props.name = 'running'; n3.data.label = '运行状态'; updateNodeVisual(n3); }
+
+      addConnection(n1.id, 'execOut', n2.id, 'execIn');
+      addConnection(n2.id, 'execOut', n3.id, 'execIn');
+
+      selectNode(null);
+      updateCode();
+
+    })();
+  </script>
+
+</body>
+</html>
