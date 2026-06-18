@@ -92,7 +92,6 @@ eventTypes.forEach(([id, zh, en]) => {
     init() {
       this.setPreviousStatement(false)
       this.appendDummyInput().appendField(`🎯 ${_b(zh, en)}`)
-      this.appendStatementInput('BODY')
       this.setNextStatement(true)
       this.setColour('#87CEEB')
       this.setTooltip(_b(`当玩家${zh}时触发`, `Triggered on ${en}`))

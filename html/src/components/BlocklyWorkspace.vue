@@ -251,7 +251,7 @@ const eventToConst: Record<string, string> = {
 eventTypes.forEach(([id]) => {
   luaGen[`event_${id}`] = (block, indent = 0) => {
     const constName = eventToConst[id] || `INPUT_${id.toUpperCase()}`
-    const body = genStatements(block, 'BODY', indent + 1)
+    const body = genNext(block.getNextBlock(), indent + 1)
     let code = `${'  '.repeat(indent)}if input == ${constName} then\n`
     if (body) code += body + '\n'
     code += `${'  '.repeat(indent)}end`
