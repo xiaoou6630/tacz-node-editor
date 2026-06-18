@@ -628,7 +628,18 @@ onMounted(() => {
   })
 
   // Expose workspace for save/load
-  ;(window as any).__tacz_workspace = workspace
+  ;(window as any).__tacz_workspace = {
+    clear() { workspace?.clear() },
+    getXML() { return Blockly.Xml.workspaceToDom(workspace!) },
+    loadXML(xml: string) {
+      workspace?.clear()
+      const dom = Blockly.utils.xml.textToDom(xml)
+      Blockly.Xml.domToWorkspace(dom, workspace!)
+    },
+    getCode() { return generateCode() },
+    set code(v: string) {},
+    get code() { return generateCode() },
+  }
 
   // Listen for workspace changes
   workspace.addChangeListener(handleWorkspaceChange)

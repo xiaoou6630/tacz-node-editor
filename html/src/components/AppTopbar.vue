@@ -1,12 +1,17 @@
 <template>
   <div class="topbar">
     <div class="topbar-left">
-      <span class="logo">🧩 TACZ Lua 编辑器</span>
+      <img src="/src/TLV.png" class="logo-img" alt="logo" />
+      <span class="logo">TACZ Lua 编辑器</span>
 
       <div class="topbar-btn" @click="toggleMenu('file', $event)">
         {{ t('file') }} ▾
         <div class="dropdown" v-if="showFile" @click.stop>
           <div class="dropdown-item" @click="handleNew">📄 {{ t('newProject') }}</div>
+          <div class="dropdown-sep"></div>
+          <div class="dropdown-item" @click="handleExportProject">📦 {{ t('exportProject') }}</div>
+          <div class="dropdown-item" @click="triggerImport">📥 {{ t('importProject') }}</div>
+          <div class="dropdown-sep"></div>
           <div class="dropdown-item" @click="handleExportLua">📜 {{ t('exportLua') }}</div>
         </div>
       </div>
@@ -19,6 +24,7 @@
             <span style="color:#999;font-size:11px;">{{ langLabel }}</span>
           </div>
           <div class="dropdown-item" @click="handleHelp">📖 {{ t('help') }}</div>
+          <div class="dropdown-item" @click="handleEnv">🔧 {{ t('envCheck') }}</div>
           <div class="dropdown-sep"></div>
           <div class="dropdown-item" @click="handleAbout">ℹ️ {{ t('about') }}</div>
         </div>
@@ -34,10 +40,30 @@
         placeholder="my_state_machine"
         spellcheck="false"
       />
+      <span class="char-count">{{ projectName.length }}/15</span>
     </div>
 
+    <input ref="fileInput" type="file" accept=".tlbw" style="display:none" @change="handleImport" />
+
     <Teleport to="body">
-      <!-- 帮助弹窗 -->
+      <!-- 环境检测 -->
+      <div class="modal-overlay" v-if="showEnv" @click="showEnv = false">
+        <div class="modal" @click.stop>
+          <h3>🔧 {{ t('envTitle') }}</h3>
+          <p style="font-size:12px;color:#999;margin-bottom:12px;">{{ t('envDesc') }}</p>
+          <div class="env-grid">
+            <div v-for="item in envChecks" :key="item.name" class="env-item">
+              <span>{{ item.icon }} {{ item.name }}</span>
+              <span :class="item.ok ? 'ok' : item.warn ? 'warn' : 'err'">
+                {{ item.ok ? '✓ ' + t('envSupport') : item.warn ? '△ ' + t('envPartial') : '✗ ' + t('envNot') }}
+              </span>
+            </div>
+          </div>
+          <button class="modal-btn" @click="showEnv = false">{{ t('ok') }}</button>
+        </div>
+      </div>
+
+      <!-- 帮助 -->
       <div class="modal-overlay" v-if="showHelp" @click="showHelp = false">
         <div class="modal" @click.stop>
           <h3>📖 {{ t('help') }}</h3>
@@ -56,7 +82,7 @@
         </div>
       </div>
 
-      <!-- 关于弹窗 -->
+      <!-- 关于 -->
       <div class="modal-overlay" v-if="showAbout" @click="showAbout = false">
         <div class="modal" @click.stop>
           <h3>🧩 TACZ Lua 编辑器</h3>
@@ -64,6 +90,7 @@
           <p class="about-desc">{{ t('aboutDesc') }}</p>
           <p class="about-desc">{{ t('aboutStack') }}</p>
           <p class="about-author">xiaoou6630</p>
+          <p class="about-link" @click="openGitHub">🌐 {{ t('aboutGitHub') }}</p>
           <p class="about-copy">© 2026 TACZ Lua 编辑器</p>
           <button class="modal-btn" @click="showAbout = false">{{ t('ok') }}</button>
         </div>
@@ -81,6 +108,11 @@ const showFile = ref(false)
 const showSettings = ref(false)
 const showHelp = ref(false)
 const showAbout = ref(false)
+const showEnv = ref(false)
+const fileInput = ref<HTMLInputElement>()
+const envChecks = ref<EnvItem[]>([])
+
+interface EnvItem { icon: string; name: string; ok: boolean; warn: boolean }
 
 const langLabel = computed(() => i18n.value.lang === 'zh' ? '中文' : 'English')
 
@@ -91,10 +123,70 @@ function toggleMenu(menu: string, e: MouseEvent) {
 }
 document.addEventListener('click', () => { showFile.value = false; showSettings.value = false })
 
+// Environment check
+function handleEnv() {
+  showSettings.value = false
+  const w = screen.width; const h = screen.height
+  envChecks.value = [
+    { icon:'💾', name:t('envStorage'), ok:testLocalStorage(), warn:false },
+    { icon:'🗄️', name:t('envIndexedDB'), ok:!!indexedDB, warn:!indexedDB },
+    { icon:'📁', name:t('envFileAPI'), ok:!!(window.File && FileReader && Blob), warn:false },
+    { icon:'📋', name:t('envClipboard'), ok:!!navigator.clipboard, warn:!navigator.clipboard },
+    { icon:'⚙️', name:t('envWorker'), ok:!!Worker, warn:!Worker },
+    { icon:'🌐', name:t('envHTTP'), ok:!!(fetch || XMLHttpRequest), warn:false },
+    { icon:'🔌', name:t('envWebSocket'), ok:!!WebSocket, warn:!WebSocket },
+    { icon:'🖥️', name:`${t('envScreen')} (${w}x${h})`, ok:w>=1024&&h>=600, warn:w<1024||h<600 },
+    { icon:'👆', name:t('envTouch'), ok:!!(('ontouchstart' in document.documentElement) || (navigator.maxTouchPoints>0)), warn:false },
+    { icon:'📡', name:t('envSW'), ok:!!('serviceWorker' in navigator), warn:false },
+    { icon:'📝', name:t('envDOMParser'), ok:!!DOMParser, warn:false },
+  ]
+  showEnv.value = true
+}
+function testLocalStorage(): boolean {
+  try { localStorage.setItem('_bt','1'); localStorage.removeItem('_bt'); return true }
+  catch { return false }
+}
+
+// Project
 function handleNew() {
   showFile.value = false
+  if (!confirm(t('confirmNew'))) return
   const ws = (window as any).__tacz_workspace
   if (ws) ws.clear()
+}
+
+function handleExportProject() {
+  showFile.value = false
+  const ws = (window as any).__tacz_workspace
+  if (!ws?.getXML) return
+  const serializer = new XMLSerializer()
+  const data = JSON.stringify({
+    name: projectName.value,
+    version: '1.0.0',
+    updated: new Date().toISOString(),
+    xml: serializer.serializeToString(ws.getXML()),
+  }, null, 2)
+  const blob = new Blob([data], { type: 'application/octet-stream' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url; a.download = `${projectName.value}.tlbw`; a.click()
+  URL.revokeObjectURL(url)
+}
+
+function triggerImport() { showFile.value = false; fileInput.value?.click() }
+
+function handleImport(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    try {
+      const p = JSON.parse(reader.result as string)
+      if (!p.xml || !p.version) throw Error()
+      const ws = (window as any).__tacz_workspace
+      if (ws?.loadXML) ws.loadXML(p.xml)
+      projectName.value = p.name || '导入项目'
+    } catch { alert(t('importFailed')) }
+  }
+  reader.readAsText(file); (e.target as HTMLInputElement).value = ''
 }
 
 function handleExportLua() {
@@ -112,7 +204,12 @@ function handleLang() {
 }
 
 function handleHelp() { showSettings.value = false; showHelp.value = true }
+
 function handleAbout() { showSettings.value = false; showAbout.value = true }
+
+function openGitHub() {
+  window.open('https://github.com/xiaoou6630/tacz-node-editor/tree/web1.0.0', '_blank')
+}
 </script>
 
 <style scoped>
@@ -124,6 +221,7 @@ function handleAbout() { showSettings.value = false; showAbout.value = true }
   position: relative; z-index: 100;
 }
 .topbar-left { display: flex; align-items: center; gap: 4px; }
+.logo-img { width: 22px; height: 22px; margin-right: 6px; border-radius: 4px; }
 .logo { font-weight: 800; font-size: 15px; color: #FFD93D; margin-right: 12px; letter-spacing: 0.5px; }
 .topbar-btn { position: relative; padding: 6px 14px; border-radius: 6px; cursor: pointer; transition: background 0.15s; font-weight: 500; }
 .topbar-btn:hover { background: rgba(255,255,255,0.1); }
@@ -132,7 +230,7 @@ function handleAbout() { showSettings.value = false; showAbout.value = true }
   position: absolute; top: 100%; left: 0; margin-top: 4px;
   background: #3A3A50; border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-  min-width: 200px; padding: 6px 0; z-index: 200;
+  min-width: 210px; padding: 6px 0; z-index: 200;
   animation: dropIn 0.12s ease-out;
 }
 @keyframes dropIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
@@ -145,10 +243,17 @@ function handleAbout() { showSettings.value = false; showAbout.value = true }
 .project-input { background: #1E1E30; border: 1px solid #555; border-radius: 6px; padding: 4px 10px; color: #FFD93D; font-size: 13px; font-weight: 600; width: 160px; outline: none; transition: border-color 0.15s; }
 .project-input:focus { border-color: #FFD93D; }
 .project-input::placeholder { color: #666; font-weight: 400; }
+.char-count { color: #666; font-size: 11px; min-width: 30px; }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
 .modal { background: #2D2D3F; border-radius: 12px; padding: 24px 28px; max-width: 450px; width: 90%; color: #E0E0E0; box-shadow: 0 12px 40px rgba(0,0,0,0.4); max-height: 80vh; overflow-y: auto; }
 .modal h3 { margin-bottom: 16px; font-size: 16px; color: #FFD93D; }
+
+.env-grid { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.env-item { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 13px; }
+.env-item .ok { color: #4ECDC4; font-weight: 600; }
+.env-item .warn { color: #F39C12; font-weight: 600; }
+.env-item .err { color: #FF6B6B; font-weight: 600; }
 
 .help-content { font-size: 13px; color: #CCC; line-height: 1.8; }
 .help-content p { margin-bottom: 4px; }
@@ -156,6 +261,9 @@ function handleAbout() { showSettings.value = false; showAbout.value = true }
 
 .about-ver { color: #999; font-size: 12px; margin-bottom: 8px; }
 .about-desc { font-size: 13px; color: #CCC; margin-bottom: 4px; }
+.about-author { font-size: 13px; color: #FFD93D; margin-bottom: 4px; }
+.about-link { font-size: 12px; color: #4D96FF; cursor: pointer; margin-bottom: 4px; }
+.about-link:hover { text-decoration: underline; }
 .about-copy { font-size: 11px; color: #666; margin-top: 12px; }
 .modal-btn { margin-top: 16px; padding: 8px 24px; background: #FFD93D; color: #1E1E30; border: none; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer; float: right; transition: background 0.15s; }
 .modal-btn:hover { background: #FFC107; }
