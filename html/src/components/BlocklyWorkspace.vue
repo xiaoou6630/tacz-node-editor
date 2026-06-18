@@ -233,12 +233,26 @@ function genStatements(block: Blockly.Block, inputName: string, indent = 1): str
 
 // ─── Register Lua generators for custom blocks ───
 
+// Event ID → TACZ constant name mapping (from GunAnimationConstant.java)
+const eventToConst: Record<string, string> = {
+  draw: 'INPUT_DRAW', shoot: 'INPUT_SHOOT', reload: 'INPUT_RELOAD',
+  inspect: 'INPUT_INSPECT', bolt: 'INPUT_BOLT',
+  run: 'INPUT_RUN', walk: 'INPUT_WALK', idle_input: 'INPUT_IDLE',
+  put_away: 'INPUT_PUT_AWAY', fire_select: 'INPUT_FIRE_SELECT',
+  bayonet_muzzle: 'INPUT_BAYONET_MUZZLE', bayonet_stock: 'INPUT_BAYONET_STOCK',
+  bayonet_push: 'INPUT_BAYONET_PUSH',
+  bolt_caught: 'INPUT_BOLT_CAUGHT', bolt_normal: 'INPUT_BOLT_NORMAL',
+  over_heat: 'INPUT_OVER_HEAT', cooling: 'INPUT_COOLING_HEAT',
+  inspect_retreat: 'INPUT_INSPECT_RETREAT', aim_retreat: 'INPUT_AIM_RETREAT',
+  spin: 'INPUT_SPIN', sprint: 'INPUT_SPRINT', slide: 'INPUT_SLIDE',
+}
+
 // ─── Event Hat Blocks: generate transition code ───
 eventTypes.forEach(([id]) => {
   luaGen[`event_${id}`] = (block, indent = 0) => {
-    const inputName = id === 'idle_input' ? 'idle' : id
-    const body = genStatements(block, 'BODY', indent + 2)
-    let code = `${'  '.repeat(indent)}if input == "INPUT_${inputName.toUpperCase()}" then\n`
+    const constName = eventToConst[id] || `INPUT_${id.toUpperCase()}`
+    const body = genStatements(block, 'BODY', indent + 1)
+    let code = `${'  '.repeat(indent)}if input == ${constName} then\n`
     if (body) code += body + '\n'
     code += `${'  '.repeat(indent)}end`
     return code
