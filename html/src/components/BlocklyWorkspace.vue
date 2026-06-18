@@ -237,9 +237,8 @@ function genStatements(block: Blockly.Block, inputName: string, indent = 1): str
 eventTypes.forEach(([id]) => {
   luaGen[`event_${id}`] = (block, indent = 0) => {
     const inputName = id === 'idle_input' ? 'idle' : id
-    const body = genNext(block.getNextBlock(), indent + 2)
+    const body = genStatements(block, 'BODY', indent + 2)
     let code = `${'  '.repeat(indent)}if input == "INPUT_${inputName.toUpperCase()}" then\n`
-    code += `${'  '.repeat(indent + 1)}-- ${inputName} transition\n`
     if (body) code += body + '\n'
     code += `${'  '.repeat(indent)}end`
     return code
@@ -478,14 +477,105 @@ luaGen['logic_negate'] = (block) => {
 function generateCode(): string {
   if (!workspace) return ''
   const topBlocks = workspace.getTopBlocks(true)
-  const lines: string[] = []
+
+  // Collect event hat blocks and other blocks
+  const eventBlocks: Blockly.Block[] = []
+  const stateBlocks: Blockly.Block[] = []
+  const initBlocks: Blockly.Block[] = []
+  const exitBlocks: Blockly.Block[] = []
+
   for (const block of topBlocks) {
-    const func = luaGen[block.type]
-    if (func) {
-      lines.push(func(block))
+    const type = block.type
+    if (type.startsWith('event_')) {
+      eventBlocks.push(block)
+    } else if (type === 'entry' || type === 'update_node' || type === 'exit') {
+      stateBlocks.push(block)
+    } else if (type === 'transition') {
+      stateBlocks.push(block)
+    } else if (luaGen[type]) {
+      // Other blocks at top level
     }
   }
-  return lines.join('\n\n')
+
+  const lines: string[] = []
+  lines.push('local M = {}')
+  lines.push('')
+
+  // Initialize function
+  lines.push('function M:initialize(context)')
+  for (const b of initBlocks) {
+    const code = luaGen[b.type]?.(b, 1)
+    if (code) lines.push(code)
+  }
+  lines.push('end')
+  lines.push('')
+
+  // Exit function
+  lines.push('function M:exit(context)')
+  for (const b of exitBlocks) {
+    const code = luaGen[b.type]?.(b, 1)
+    if (code) lines.push(code)
+  }
+  lines.push('end')
+  lines.push('')
+
+  // States function
+  lines.push('function M:states()')
+  lines.push('  return {')
+
+  // Generate a single state that contains all entry/update/exit/transition logic
+  lines.push('    {')
+  lines.push('      entry = function(context)')
+  // Entry blocks
+  for (const b of stateBlocks) {
+    if (b.type === 'entry') {
+      const code = luaGen[b.type]?.(b, 2)
+      if (code) lines.push(code)
+    }
+  }
+  lines.push('      end,')
+
+  lines.push('      update = function(context)')
+  for (const b of stateBlocks) {
+    if (b.type === 'update_node') {
+      const code = luaGen[b.type]?.(b, 2)
+      if (code) lines.push(code)
+    }
+  }
+  lines.push('      end,')
+
+  lines.push('      exit = function(context)')
+  for (const b of stateBlocks) {
+    if (b.type === 'exit') {
+      const code = luaGen[b.type]?.(b, 2)
+      if (code) lines.push(code)
+    }
+  }
+  lines.push('      end,')
+
+  // Transition function with all event handlers
+  lines.push('      transition = function(context, input)')
+  for (const b of eventBlocks) {
+    lines.push('        -- event handler')
+    const code = luaGen[b.type]?.(b, 2)
+    if (code) lines.push(code)
+  }
+  for (const b of stateBlocks) {
+    if (b.type === 'transition') {
+      const code = luaGen[b.type]?.(b, 2)
+      if (code) lines.push(code)
+    }
+  }
+  lines.push('        return nil')
+  lines.push('      end,')
+  lines.push('    }')
+  lines.push('  }')
+  lines.push('end')
+  lines.push('')
+
+  lines.push('return M')
+
+  return lines.join('\n')
 }
 
 // ─── Workspace Change Handler ───

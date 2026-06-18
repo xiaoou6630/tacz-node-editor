@@ -75,7 +75,6 @@ Blockly.Blocks['transition'] = {
 }
 
 // ─── Event Hat Blocks ───
-// Each event is a hat block: no previous connection, has body for transition logic
 const eventTypes: [string, string, string][] = [
   ['draw', '掏枪', 'Draw'], ['shoot', '射击', 'Shoot'], ['reload', '换弹', 'Reload'],
   ['inspect', '检视', 'Inspect'], ['bolt', '拉栓', 'Bolt'], ['aim', '瞄准', 'Aim'],
@@ -91,11 +90,11 @@ const eventTypes: [string, string, string][] = [
 eventTypes.forEach(([id, zh, en]) => {
   Blockly.Blocks[`event_${id}`] = {
     init() {
-      const inputName = id === 'idle_input' ? 'idle' : id
       this.appendDummyInput().appendField(`🎯 ${_b(zh, en)}`)
-      this.appendStatementInput('BODY').appendField(_b('跳转到状态', '→ State'))
+      this.appendStatementInput('BODY')
+      this.setNextStatement(true)
       this.setColour('#87CEEB')
-      this.setTooltip(_b(`当玩家${zh}时触发状态转换`, `Trigger state transition on ${en}`))
+      this.setTooltip(_b(`当玩家${zh}时触发`, `Triggered on ${en}`))
     }
   }
 })
