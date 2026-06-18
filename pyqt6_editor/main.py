@@ -64,19 +64,6 @@ def main():
     
     logger.info("程序启动")
     
-    # ========================================
-    # 激活保护模块（反调试+完整性检查）
-    # ========================================
-    try:
-        from pyqt6_editor.protection import ProtectionManager
-        
-        # 初始化保护（打包时会自动生成密钥和哈希）
-        ProtectionManager.initialize()
-        logger.debug("保护模块初始化成功")
-    except Exception as e:
-        # 开发模式或保护模块不可用时跳过
-        logger.warning(f"保护模块初始化失败: {e}")
-    
     from PyQt6.QtWidgets import QApplication
     from pyqt6_editor.editor import NodeEditor
 

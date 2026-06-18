@@ -1,9 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-TACZ Lua Map Editor - Build & Package Tool
-使用PyArmor混淆Python代码（试用版限制4个文件）
-然后将混淆后的代码用PyInstaller打包为单文件exe
+TLM Editor - Build & Package Tool (MIT Open Source)
+直接使用 PyInstaller 打包为单文件 exe
+
+体积优化策略（参考业界最佳实践）：
+1. 通过 .spec 文件精确控制构建，过滤不需要的 DLL
+2. -OO 优化：去除 docstring / assert
+3. DLL 白名单：删掉 opengl32sw.dll (~15MB)，不用的 Qt 组件
+4. QM 翻译文件过滤
+5. 移除 PyArmor / cryptography（开源无需保护）
 """
 
 import os
@@ -19,404 +25,94 @@ from datetime import datetime
 # Configuration
 # ============================================================================
 PROJECT_DIR = Path(r"e:\daima\block\pyqt6_editor")
+PROJECT_ROOT = PROJECT_DIR.parent
 OUTPUT_DIR = Path(r"e:\daima\block\output")
 DIST_DIR = OUTPUT_DIR / "dist"
-OBFUSCATED_DIR = OUTPUT_DIR / "obfuscated"
 BUILD_DIR = OUTPUT_DIR / "build"
 
-# 虚拟环境路径
 VENV_DIR = Path(r"e:\daima\block\venv")
-VENV_PYTHON = VENV_DIR / "Scripts" / "python.exe"
-VENV_PIP = VENV_DIR / "Scripts" / "pip.exe"
-
-# PyArmor试用版限制 - 最多4个文件
-FILES_TO_OBFUSCATE = [
-    "codegen.py",        # 代码生成器 - 核心逻辑
-    "tacz_nodes.py",     # TACZ节点定义 - 核心业务
-    "registry.py",       # 节点注册表 - 核心架构
-    "crypto.py",         # 加密模块 - 安全核心
-]
-
-# 非混淆文件（直接复制）
-NON_OBFUSCATED_FILES = [
-    "main.py",           # Entry point
-    "node.py",           # Node base class
-    "connection.py",     # Connection system
-    "protection.py",     # Protection module
-    "logger.py",         # Logger module
-]
-
-# 资源文件
-RESOURCE_FILES = [
-    "API.md",
-    "模组扩展指南.md",
-    "config.json",
-]
-
-# UPX配置
 UPX_PATH = Path(r"e:\daima\block\upx\upx-4.2.2-win64\upx.exe")
 
-# 构建信息
-BUILD_VERSION = "1.0.0"
+BUILD_VERSION = "2.0.0"
 BUILD_NAME = "TLM编辑器"
 
 
 # ============================================================================
-# Build Logger - Java Style
+# Logger
 # ============================================================================
-class BuildLogger:
-    """Java风格构建日志"""
-    
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-    
+class L:
+    H = '\033[95m'; B = '\033[94m'; C = '\033[96m'; G = '\033[92m'
+    Y = '\033[93m'; R = '\033[91m'; X = '\033[0m'; BD = '\033[1m'
+
     @staticmethod
-    def _timestamp():
-        return datetime.now().strftime("%H:%M:%S")
-    
+    def _ts(): return datetime.now().strftime("%H:%M:%S")
     @classmethod
-    def info(cls, msg):
-        print(f"[{cls._timestamp()}] {cls.OKBLUE}[INFO]{cls.ENDC} {msg}")
-    
+    def info(cls, m): print(f"[{cls._ts()}] {cls.B}[INFO]{cls.X} {m}")
     @classmethod
-    def success(cls, msg):
-        print(f"[{cls._timestamp()}] {cls.OKGREEN}[SUCCESS]{cls.ENDC} {msg}")
-    
+    def ok(cls, m): print(f"[{cls._ts()}] {cls.G}[OK]{cls.X} {m}")
     @classmethod
-    def warn(cls, msg):
-        print(f"[{cls._timestamp()}] {cls.WARNING}[WARNING]{cls.ENDC} {msg}")
-    
+    def warn(cls, m): print(f"[{cls._ts()}] {cls.Y}[WARN]{cls.X} {m}")
     @classmethod
-    def error(cls, msg):
-        print(f"[{cls._timestamp()}] {cls.FAIL}[ERROR]{cls.ENDC} {msg}")
-    
+    def err(cls, m): print(f"[{cls._ts()}] {cls.R}[ERR]{cls.X} {m}")
     @classmethod
-    def debug(cls, msg):
-        print(f"[{cls._timestamp()}] {cls.OKCYAN}[DEBUG]{cls.ENDC} {msg}")
-    
+    def step(cls, m): print(f"\n{cls.BD}{cls.H}{'='*60}{cls.X}")
     @classmethod
-    def phase(cls, msg):
-        print(f"\n{cls.BOLD}{cls.HEADER}{'='*70}{cls.ENDC}")
-        print(f"{cls.BOLD}{cls.HEADER} >>> {msg}{cls.ENDC}")
-        print(f"{cls.BOLD}{cls.HEADER}{'='*70}{cls.ENDC}\n")
-    
-    @classmethod
-    def progress(cls, msg):
-        print(f"[{cls._timestamp()}] {cls.BOLD}  > {msg}{cls.ENDC}")
-
-
-logger = BuildLogger()
+    def phase(cls, m): print(f"\n{cls.BD}{cls.C}>>> {m}{cls.X}")
 
 
 # ============================================================================
-# Build Steps
+# Build
 # ============================================================================
 
-class BuildContext:
-    """构建上下文"""
-    def __init__(self):
-        self.start_time = time.time()
-        self.success_count = 0
-        self.warning_count = 0
-        self.error_count = 0
-        self.steps = []
-
-
-def print_banner():
-    """打印构建横幅"""
-    print(f"\n{BuildLogger.BOLD}{BuildLogger.OKCYAN}")
-    print("╔══════════════════════════════════════════════════════════════════╗")
-    print("║          TACZ Lua Map Editor - Build & Package Tool            ║")
-    print("║                  Powered by PyArmor + PyInstaller               ║")
-    print("╚══════════════════════════════════════════════════════════════════╝")
-    print(f"{BuildLogger.ENDC}")
-    logger.info(f"Project: {PROJECT_DIR}")
-    logger.info(f"Output: {OUTPUT_DIR}")
-    logger.info(f"Build Version: {BUILD_VERSION}")
-    print()
-
-
-def check_environment(ctx: BuildContext):
-    """检查构建环境"""
-    logger.phase("PHASE 1: Environment Check")
-    
-    # 检查Python版本
-    logger.progress("Checking Python version...")
-    python_version = sys.version
-    logger.info(f"Python: {python_version.split()[0]}")
-    
-    # 检查项目目录
-    logger.progress("Checking project directory...")
-    if not PROJECT_DIR.exists():
-        logger.error(f"Project directory not found: {PROJECT_DIR}")
-        ctx.error_count += 1
-        return False
-    logger.info(f"Project directory: OK")
-    
-    # 检查PyArmor
-    logger.progress("Checking PyArmor installation...")
-    try:
-        result = subprocess.run(
-            ["pyarmor", "--version"],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        if result.returncode == 0:
-            version = result.stdout.strip().split('\n')[0]
-            logger.success(f"PyArmor: {version}")
-            ctx.success_count += 1
-        else:
-            logger.warn("PyArmor not found, installing...")
-            subprocess.run(
-                [sys.executable, "-m", "pip", "install", "pyarmor"],
-                check=True,
-                capture_output=True
-            )
-            logger.success("PyArmor installed successfully")
-            ctx.success_count += 1
-    except Exception as e:
-        logger.error(f"PyArmor check failed: {e}")
-        ctx.error_count += 1
-        return False
-    
-    # 检查UPX
-    logger.progress("Checking UPX...")
-    if UPX_PATH.exists():
-        logger.success(f"UPX: {UPX_PATH}")
-        ctx.success_count += 1
-    else:
-        logger.warn(f"UPX not found at {UPX_PATH}, will skip compression")
-        ctx.warning_count += 1
-    
-    # 检查需要混淆的文件
-    logger.progress("Checking obfuscation target files...")
-    for py_file in FILES_TO_OBFUSCATE:
-        file_path = PROJECT_DIR / py_file
-        if file_path.exists():
-            logger.debug(f"  ✓ {py_file} (will obfuscate)")
-        else:
-            logger.warn(f"  ✗ {py_file} (not found)")
-            ctx.warning_count += 1
-    
-    # 检查非混淆文件
-    logger.progress("Checking non-obfuscated files...")
-    for py_file in NON_OBFUSCATED_FILES:
-        file_path = PROJECT_DIR / py_file
-        if file_path.exists():
-            logger.debug(f"  ✓ {py_file} (will copy)")
-        else:
-            logger.warn(f"  ✗ {py_file} (not found)")
-            ctx.warning_count += 1
-    
-    return True
-
-
-def clean_build_dirs():
-    """清理构建目录"""
-    logger.phase("PHASE 2: Clean Build Directories")
-    
-    dirs_to_clean = [OBFUSCATED_DIR, BUILD_DIR]
-    
-    for dir_path in dirs_to_clean:
-        if dir_path.exists():
-            logger.progress(f"Cleaning: {dir_path}")
-            shutil.rmtree(dir_path)
-            logger.info(f"Deleted: {dir_path}")
-        else:
-            logger.debug(f"Skip (not exists): {dir_path}")
-    
-    # 创建输出目录
+def clean():
+    L.step("STEP 1: Clean")
+    for d in [DIST_DIR, BUILD_DIR]:
+        if d.exists():
+            L.phase(f"Removing {d.name}...")
+            try:
+                shutil.rmtree(d)
+            except PermissionError:
+                L.warn("File locked, retrying after rename...")
+                import tempfile
+                time.sleep(1)
+                try:
+                    shutil.rmtree(d)
+                except PermissionError:
+                    # 改名再删
+                    tmp = Path(tempfile.gettempdir()) / f"old_{d.name}_{int(time.time())}"
+                    L.warn(f"Moving to: {tmp}")
+                    shutil.move(str(d), str(tmp))
+                    try:
+                        shutil.rmtree(tmp, ignore_errors=True)
+                    except Exception:
+                        pass
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    OBFUSCATED_DIR.mkdir(parents=True, exist_ok=True)
-    logger.success("Build directories cleaned")
-    return True
+    L.ok("Cleaned")
 
 
-def run_pyarmor_obfuscation(ctx: BuildContext):
-    """执行PyArmor混淆"""
-    logger.phase("PHASE 3: PyArmor Obfuscation")
-    logger.info(f"Target files: {len(FILES_TO_OBFUSCATE)} (Trial version limit: 4)")
-    print()
-    
-    # 逐个文件混淆，避免超限
-    success_count = 0
-    failed_files = []
-    
-    for py_file in FILES_TO_OBFUSCATE:
-        file_path = PROJECT_DIR / py_file
-        
-        if not file_path.exists():
-            logger.warn(f"Skipping missing file: {py_file}")
-            continue
-        
-        logger.progress(f"Obfuscating: {py_file}")
-        
-        pyarmor_cmd = [
-            "pyarmor", "gen",
-            "--output", str(OBFUSCATED_DIR),
-            str(file_path),
-        ]
-        
-        try:
-            result = subprocess.run(
-                pyarmor_cmd,
-                capture_output=True,
-                text=True,
-                cwd=str(PROJECT_DIR),
-                timeout=60
-            )
-            
-            if result.returncode == 0:
-                # 检查是否真的生成了文件
-                expected_output = OBFUSCATED_DIR / py_file
-                if expected_output.exists():
-                    size_kb = expected_output.stat().st_size / 1024
-                    logger.success(f"  ✓ {py_file} ({size_kb:.1f} KB)")
-                    success_count += 1
-                else:
-                    logger.warn(f"  ⚠ {py_file} - output not found")
-                    failed_files.append(py_file)
-            else:
-                stderr = result.stderr.strip()
-                if "out of license" in stderr.lower():
-                    logger.error(f"  ✗ {py_file} - LICENSE LIMIT REACHED")
-                    logger.error(f"    Trial version can only obfuscate {success_count} files")
-                    failed_files.extend(FILES_TO_OBFUSCATE[FILES_TO_OBFUSCATE.index(py_file):])
-                    break
-                else:
-                    logger.error(f"  ✗ {py_file} - failed")
-                    logger.debug(f"    Error: {stderr[:200]}")
-                    failed_files.append(py_file)
-                    
-        except subprocess.TimeoutExpired:
-            logger.error(f"  ✗ {py_file} - timeout")
-            failed_files.append(py_file)
-        except Exception as e:
-            logger.error(f"  ✗ {py_file} - {e}")
-            failed_files.append(py_file)
-    
-    print()
-    
-    if success_count > 0:
-        logger.success(f"Obfuscation completed: {success_count}/{len(FILES_TO_OBFUSCATE)} files")
-        ctx.success_count += 1
-        
-        if failed_files:
-            logger.warn(f"Failed files will be copied without obfuscation:")
-            for f in failed_files:
-                logger.warn(f"  - {f}")
-                # 将失败的文件添加到非混淆列表
-                if f not in NON_OBFUSCATED_FILES:
-                    NON_OBFUSCATED_FILES.append(f)
-        
-        return True
-    else:
-        logger.error("No files were obfuscated")
-        ctx.error_count += 1
-        return False
+def build():
+    L.step("STEP 2: PyInstaller Build (Spec + DLL Filter)")
 
+    entry = PROJECT_DIR / "main.py"
+    if not entry.exists():
+        L.err(f"Entry not found: {entry}")
+        sys.exit(1)
 
-def copy_resources(ctx: BuildContext):
-    """复制资源文件和非混淆文件"""
-    logger.phase("PHASE 4: Copy Resources")
-    
-    # 复制非混淆 Python 文件
-    logger.progress("Copying non-obfuscated Python files...")
-    for filename in NON_OBFUSCATED_FILES:
-        src = PROJECT_DIR / filename
-        if src.exists():
-            dest = OBFUSCATED_DIR / filename
-            shutil.copy2(src, dest)
-            logger.debug(f"  ✓ {filename}")
-        else:
-            logger.warn(f"  ✗ {filename} (not found)")
-    
-    # 复制资源文件
-    logger.progress("Copying resource files...")
-    for filename in RESOURCE_FILES:
-        src = PROJECT_DIR / filename
-        if src.exists():
-            dest = OBFUSCATED_DIR / filename
-            shutil.copy2(src, dest)
-            logger.debug(f"  ✓ {filename}")
-        else:
-            logger.warn(f"  ✗ {filename} (not found)")
-    
-    # 创建 __init__.py 使 obfuscated 目录成为一个包
-    init_file = OBFUSCATED_DIR / "__init__.py"
-    if not init_file.exists():
-        init_file.write_text("# PyInstaller obfuscated package\n")
-        logger.debug("  ✓ Created __init__.py")
-    
-    logger.success("Resources copied")
-    ctx.success_count += 1
-    return True
-
-
-def run_pyinstaller_build(ctx: BuildContext):
-    """执行PyInstaller打包"""
-    logger.phase("PHASE 5: PyInstaller Build")
-    
-    # 检查入口文件
-    entry_file = OBFUSCATED_DIR / "main.py"
-    if not entry_file.exists():
-        logger.error(f"Entry file not found: {entry_file}")
-        ctx.error_count += 1
-        return False
-    
-    # 构建命令
-    pyinstaller_cmd = [
-        sys.executable, "-m", "PyInstaller",
-        "--onefile",
-        "--name", BUILD_NAME,
-        "--noconfirm",
-        "--clean",
-        "--distpath", str(DIST_DIR),
-        "--workpath", str(BUILD_DIR),
-        "--specpath", str(BUILD_DIR),
-        "--paths", str(PROJECT_DIR.parent),  # 添加项目父目录到搜索路径
-        "--additional-hooks-dir", str(PROJECT_DIR),  # 使用自定义 hook 排除 Qt 模块
-        "--noconsole",  # 不显示控制台窗口
-        "--windowed",  # GUI 应用，隐藏控制台
-    ]
-    
-    # 添加隐藏导入
-    hidden_imports = [
-        "PyQt6", "PyQt6.QtWidgets", "PyQt6.QtCore", "PyQt6.QtGui",
-        "cryptography", "cryptography.fernet",
-        "pyqt6_editor",
-        "pyqt6_editor.editor",
-        "pyqt6_editor.node",
-        "pyqt6_editor.connection",
-        "pyqt6_editor.codegen",
-        "pyqt6_editor.tacz_nodes",
-        "pyqt6_editor.registry",
-        "pyqt6_editor.crypto",
-        "pyqt6_editor.protection",
-        "pyqt6_editor.logger",
-        "pyqt6_editor.__init__",
-    ]
-    
-    logger.progress("Configuring hidden imports...")
-    for imp in hidden_imports:
-        pyinstaller_cmd.extend(["--hidden-import", imp])
-        logger.debug(f"  + {imp}")
-    
-    # 不再使用 --collect-all，让 hook 精确控制 Qt 模块
-    
-    # 排除不需要的模块
-    excluded_modules = [
+    # ============================================================
+    # 排除的 Python 模块
+    # ============================================================
+    excludes = [
         # 标准库
-        "tkinter", "unittest", "email", "http", "xml", "pydoc",
-        "importlib_metadata", "distutils", "test", "tests",
+        "tkinter", "unittest", "pydoc",
+        "distutils", "test", "tests", "lib2to3",
+        "asyncio", "multiprocessing", "concurrent",
+        "urllib", "html", "csv", "bz2", "lzma",
+        "plistlib", "secrets",
+        "email", "http", "xml",
+        "importlib_metadata",
+        # 加密/保护（开源版不需要）
+        "cryptography", "pyarmor", "pyarmor.cli",
+        "pyinstxtractor_ng", "spark_parser", "uncompyle6", "xdis",
         # 环境中无关包
         "numpy", "matplotlib", "PIL", "pillow", "openpyxl",
         "flask", "Flask", "flask_cors", "flask_sock",
@@ -430,254 +126,247 @@ def run_pyinstaller_build(ctx: BuildContext):
         "pygments", "textdistance", "pypinyin",
         "waitress", "watchfiles", "blinker",
         "phone_mcp", "waiting",
-        # Cython/PyInstaller 相关
-        "cython", "pyinstaller", "pefile", "altgraph",
+        "cython", "pefile", "altgraph",
         "setuptools", "pkg_resources", "wheel",
-        # Qt 无关组件
-        "PySide6", "PySide6_Addons", "PySide6_Essentials",
-        "PyQt6.QtMultimedia", "PyQt6.QtNetwork", "PyQt6.QtPrintSupport",
-        "PyQt6.QtOpenGL", "PyQt6.QtSql", "PyQt6.QtTest",
-        "PyQt6.QtWebChannel", "PyQt6.QtWebSockets",
-        "PyQt6.QtDesigner", "PyQt6.QtHelp",
-        "shiboken6", "QtPy",
-        # 其他
-        "pyarmor", "pyarmor.cli", "pyinstxtractor_ng",
-        "spark_parser", "uncompyle6", "xdis",
-        "yarl", "multidict", "propcache", "frozenlist",
+        "pytest", "pluggy", "iniconfig",
         "pydantic", "pydantic_core", "pydantic_settings",
         "annotated_types", "typing_inspection",
+        "markupsafe", "jinja2", "click", "greenlet",
         "pystray", "pywin32", "win32",
-        "pytest", "pluggy", "iniconfig",
         "sse_starlette", "python_multipart",
-        "cffi", "pycparser",
-        "simple_websocket",
-        "greenlet",
+        "cffi", "pycparser", "simple_websocket",
+        "yarl", "multidict", "propcache", "frozenlist",
+        # Qt 无关组件
+        "PySide6", "PySide6_Addons", "PySide6_Essentials",
+        "shiboken6", "QtPy",
+        "PyQt6.QtMultimedia", "PyQt6.QtMultimediaWidgets",
+        "PyQt6.QtNetwork", "PyQt6.QtPrintSupport",
+        "PyQt6.QtOpenGL", "PyQt6.QtSql", "PyQt6.QtTest",
+        "PyQt6.QtWebChannel", "PyQt6.QtWebSockets",
+        "PyQt6.QtWebEngine", "PyQt6.QtWebEngineWidgets",
+        "PyQt6.QtWebEngineCore",
+        "PyQt6.QtDesigner", "PyQt6.QtHelp",
+        "PyQt6.QtXml", "PyQt6.QtXmlPatterns",
+        "PyQt6.QtBluetooth", "PyQt6.QtNfc",
+        "PyQt6.QtSensors", "PyQt6.QtSerialPort",
+        "PyQt6.QtPositioning",
+        "PyQt6.QtQuick", "PyQt6.QtQuickWidgets",
+        "PyQt6.QtQml",
     ]
-    logger.progress("Excluding unnecessary modules...")
-    for mod in excluded_modules:
-        pyinstaller_cmd.extend(["--exclude-module", mod])
-        logger.debug(f"  - {mod}")
-    
-    # 添加数据文件
-    logger.progress("Adding resource files...")
-    for data_file in RESOURCE_FILES:
-        data_path = OBFUSCATED_DIR / data_file
-        if data_path.exists():
-            pyinstaller_cmd.extend(["--add-data", f"{data_path};."])
-            logger.debug(f"  + {data_file}")
-    
-    # 添加入口文件（从 pyqt6_editor 包中导入 main）
-    pyinstaller_cmd.append(str(PROJECT_DIR / "main.py"))
-    
+
+    # ============================================================
+    # DLL 黑名单（打包后删除，不减白不减）
+    # ============================================================
+    unwanted_dlls = [
+        # 软件渲染器 (~15MB，PyQt6 自带但根本不用)
+        'opengl32sw.dll',
+        # D3D 编译器 (~3MB)
+        'd3dcompiler_47.dll',
+        # 图形加速（GUI 不需要）
+        'libEGL.dll', 'libGLESv2.dll',
+        # 加密库（已移除 cryptography）
+        'libcrypto-1_1.dll',
+        # Qt 不需要的组件
+        'Qt6Quick', 'Qt6Qml', 'Qt6Svg', 'Qt6Network', 'Qt6DBus',
+        'Qt6Designer', 'Qt6Help', 'Qt6Xml',
+        'Qt6Bluetooth', 'Qt6Nfc', 'Qt6Sensors', 'Qt6SerialPort',
+        'Qt6Positioning',
+        # Qt 最小化平台插件
+        'qminimal.dll', 'qoffscreen.dll', 'qwebgl.dll', 'qdirect2d.dll',
+        # 图标引擎
+        'iconengines\\\\',
+        # 打印支持
+        'Qt6PrintSupport',
+        # Web Engine（~60MB，不要）
+        'qtwebengine_', 'QtWebEngine', 'Qt6Web',
+        # QML 模型
+        'Qt6QmlModels', 'Qt6QuickControls2', 'Qt6QuickTemplates2',
+        'Qt6QuickTest',
+        # 不需要的图片格式
+        'qgif', 'qicns', 'qico', 'qtga', 'qwbmp',
+        'qsvg', 'qjpeg', 'qtiff', 'qwebp',
+        # MSVC 运行库（系统自带）
+        'MSVCP140', 'VCRUNTIME140',
+        'api-ms-win-crt-',
+        # 音频编解码（GUI 编辑器不用）
+        'avcodec-', 'avformat-', 'avutil-', 'swscale-',
+        'concrt140.dll',
+    ]
+
+    # ============================================================
+    # 生成 .spec 文件
+    # ============================================================
+    exclude_str = ',\n        '.join(repr(m) for m in excludes)
+    src_repr = repr(str(entry))
+
+    spec = f'''# -*- mode: python ; coding: utf-8 -*-
+
+a = Analysis(
+    [{src_repr}],
+    pathex=[{repr(str(PROJECT_ROOT))}],
+    binaries=[],
+    datas=[],
+    hiddenimports=[],
+    hookspath=[{repr(str(PROJECT_DIR))}],
+    hooksconfig={{}},
+    runtime_hooks=[],
+    excludes=[
+        {exclude_str},
+    ],
+    noarchive=False,
+    optimize=2,
+)
+pyz = PYZ(a.pure)
+
+# DLL 过滤：删掉不需要的 DLL 和 imageformats
+UNWANTED_DLLS = {repr(unwanted_dlls)}
+a.binaries = [
+    b for b in a.binaries
+    if not any(pat in b[0] for pat in UNWANTED_DLLS)
+]
+
+# 删掉 Qt 翻译文件 (.qm)
+a.datas = [
+    d for d in a.datas
+    if not d[0].endswith('.qm')
+]
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='{BUILD_NAME}',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx={str(UPX_PATH.exists())},
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    upx_dir={repr(str(UPX_PATH.parent)) if UPX_PATH.exists() else 'None'},
+)
+'''
+
+    BUILD_DIR.mkdir(parents=True, exist_ok=True)
+    spec_path = BUILD_DIR / f"{BUILD_NAME}.spec"
+    spec_path.write_text(spec, encoding='utf-8')
+    L.ok(f"Spec written: {spec_path}")
+    L.ok(f"DLL filter: {len(unwanted_dlls)} patterns")
+
+    # ============================================================
+    # 执行 PyInstaller
+    # ============================================================
+    venv_python = VENV_DIR / "Scripts" / "python.exe"
+    python_exe = venv_python if venv_python.exists() else sys.executable
+
+    cmd = [
+        str(python_exe), "-OO", "-m", "PyInstaller",
+        "--noconfirm", "--clean",
+        "--distpath", str(DIST_DIR),
+        "--workpath", str(BUILD_DIR),
+        str(spec_path),
+    ]
+
+    L.phase(f"Building with {python_exe.name} -OO...")
+    L.info(f"Source: {entry}")
+    L.info(f"Output: {DIST_DIR}/{BUILD_NAME}.exe")
+    L.info(f"Excluded: {len(excludes)} Python modules + {len(unwanted_dlls)} DLL patterns")
     print()
-    logger.progress("Executing PyInstaller (this may take several minutes)...")
-    logger.info(f"Output: {DIST_DIR / f'{BUILD_NAME}.exe'}")
-    
+
+    start = time.time()
     try:
-        result = subprocess.run(
-            pyinstaller_cmd,
-            cwd=str(PROJECT_DIR),
-            timeout=600
-        )
-        
+        result = subprocess.run(cmd, cwd=str(PROJECT_DIR), timeout=600)
         if result.returncode != 0:
-            logger.error("PyInstaller build failed")
-            ctx.error_count += 1
-            return False
-        
-        # 检查输出文件
-        exe_path = DIST_DIR / f"{BUILD_NAME}.exe"
-        if exe_path.exists():
-            size_mb = exe_path.stat().st_size / (1024 * 1024)
-            logger.success(f"Build successful: {BUILD_NAME}.exe ({size_mb:.2f} MB)")
-            ctx.success_count += 1
-            return True
-        else:
-            logger.error(f"Output file not found: {exe_path}")
-            ctx.error_count += 1
-            return False
-            
+            L.err("PyInstaller failed")
+            sys.exit(1)
     except subprocess.TimeoutExpired:
-        logger.error("PyInstaller build timeout (10 minutes)")
-        ctx.error_count += 1
-        return False
-    except Exception as e:
-        logger.error(f"PyInstaller build error: {e}")
-        ctx.error_count += 1
-        return False
+        L.err("Build timeout (10 min)")
+        sys.exit(1)
 
-
-def run_upx_compression(ctx: BuildContext):
-    """执行UPX压缩"""
-    logger.phase("PHASE 6: UPX Compression")
-    
+    elapsed = time.time() - start
     exe_path = DIST_DIR / f"{BUILD_NAME}.exe"
-    
-    if not UPX_PATH.exists():
-        logger.warn("UPX not found, skipping compression")
-        ctx.warning_count += 1
-        return True
-    
-    if not exe_path.exists():
-        logger.warn(f"EXE not found: {exe_path}")
-        ctx.warning_count += 1
-        return True
-    
-    original_size = exe_path.stat().st_size / (1024 * 1024)
-    logger.progress(f"Compressing: {exe_path.name} ({original_size:.2f} MB)")
-    
-    try:
-        result = subprocess.run(
-            [str(UPX_PATH), "--best", "--force", str(exe_path)],
-            capture_output=True,
-            text=True,
-            timeout=120
-        )
-        
-        if result.returncode == 0:
-            compressed_size = exe_path.stat().st_size / (1024 * 1024)
-            ratio = (1 - compressed_size / original_size) * 100
-            logger.success(f"Compression complete: {compressed_size:.2f} MB ({ratio:.1f}% saved)")
-            ctx.success_count += 1
-            return True
-        else:
-            logger.warn(f"UPX compression failed: {result.stderr[:200]}")
-            ctx.warning_count += 1
-            return True
-            
-    except subprocess.TimeoutExpired:
-        logger.warn("UPX compression timeout")
-        ctx.warning_count += 1
-        return True
-    except Exception as e:
-        logger.warn(f"UPX compression error: {e}")
-        ctx.warning_count += 1
-        return True
 
-
-def copy_final_output(ctx: BuildContext):
-    """复制最终输出"""
-    logger.phase("PHASE 7: Final Output")
-    
-    exe_path = DIST_DIR / f"{BUILD_NAME}.exe"
-    
-    if not exe_path.exists():
-        logger.error(f"Build output not found: {exe_path}")
-        ctx.error_count += 1
-        return False
-    
-    # 文件已经通过PyInstaller直接生成到DIST_DIR
-    size_mb = exe_path.stat().st_size / (1024 * 1024)
-    
-    logger.success("Final build artifacts:")
-    print()
-    logger.info(f"  📦 {exe_path}")
-    logger.info(f"     Size: {size_mb:.2f} MB")
-    
-    # 列出所有输出文件
-    for f in DIST_DIR.iterdir():
-        if f.is_file() and f.name != f"{BUILD_NAME}.exe":
-            size = f.stat().st_size / 1024
-            logger.info(f"  📄 {f.name} ({size:.1f} KB)")
-    
-    return True
-
-
-def print_build_summary(ctx: BuildContext):
-    """打印构建摘要"""
-    elapsed = time.time() - ctx.start_time
-    
-    logger.phase("BUILD SUMMARY")
-    
-    print(f"  Build Version: {BUILD_VERSION}")
-    print(f"  Total Time: {elapsed:.2f}s")
-    print(f"  Success: {ctx.success_count}")
-    print(f"  Warnings: {ctx.warning_count}")
-    print(f"  Errors: {ctx.error_count}")
-    print()
-    
-    # 保护措施清单
-    logger.info("Protection layers enabled:")
-    protections = [
-        ("PyArmor Obfuscation", "✓", f"{len(FILES_TO_OBFUSCATE)} core files obfuscated"),
-        ("PyInstaller Bundle", "✓", "Single-file executable"),
-        ("UPX Compression", "✓" if UPX_PATH.exists() else "✗", "Executable compression"),
-        ("Config Encryption", "✓", "Encrypted configuration"),
-        ("Anti-Debug", "✓", "Debug protection"),
-        ("Logging System", "✓", "Secure logging"),
-    ]
-    
-    for name, status, desc in protections:
-        symbol = "✅" if status == "✓" else "⚠️"
-        print(f"  {symbol} {name}: {desc}")
-    
-    # 最终状态
-    print()
-    if ctx.error_count == 0:
-        logger.success("BUILD SUCCESSFUL")
+    if exe_path.exists():
+        size_mb = exe_path.stat().st_size / (1024 * 1024)
+        L.ok(f"Build OK: {BUILD_NAME}.exe ({size_mb:.2f} MB, {elapsed:.0f}s)")
+        return exe_path
     else:
-        logger.error(f"BUILD FAILED with {ctx.error_count} error(s)")
-    
-    # 输出文件位置
-    print(f"\n{logger.BOLD}Output Directory:{logger.ENDC}")
-    print(f"  {DIST_DIR}")
-    
-    print(f"\n{logger.BOLD}{'='*70}{logger.ENDC}\n")
+        L.err(f"Exe not found: {exe_path}")
+        sys.exit(1)
+
+
+def compress(exe_path):
+    L.step("STEP 3: UPX Compression")
+
+    if not UPX_PATH.exists():
+        L.warn(f"UPX not found: {UPX_PATH}")
+        return
+
+    before = exe_path.stat().st_size / (1024 * 1024)
+    L.phase(f"Before: {before:.2f} MB")
+
+    try:
+        r = subprocess.run(
+            [str(UPX_PATH), "--ultra-brute", "--force", str(exe_path)],
+            capture_output=True, text=True, timeout=300,
+        )
+        if r.returncode == 0:
+            after = exe_path.stat().st_size / (1024 * 1024)
+            saved = (1 - after / before) * 100
+            L.ok(f"After: {after:.2f} MB (saved {saved:.1f}%)")
+        else:
+            L.warn(f"UPX failed: {r.stderr.strip()[:200]}")
+    except subprocess.TimeoutExpired:
+        L.warn("UPX timeout")
+    except Exception as e:
+        L.warn(f"UPX error: {e}")
+
+
+def summary(exe_path):
+    L.step("BUILD COMPLETE")
+    size_mb = exe_path.stat().st_size / (1024 * 1024)
+    old_size = 39.0  # 旧版大小
+    print(f"  Output : {exe_path}")
+    print(f"  Size   : {size_mb:.2f} MB")
+    if size_mb < old_size:
+        print(f"  vs 旧版: 节省 {(1 - size_mb / old_size) * 100:.1f}%")
+    print()
+    print("\033[1;32m  ✓ 打包完成！\033[0m")
+    print()
 
 
 # ============================================================================
-# Main Build Pipeline
+# Main
 # ============================================================================
-
 def main():
-    """主构建流程"""
-    ctx = BuildContext()
-    
-    # 打印横幅
-    print_banner()
-    
-    # Phase 1: 环境检查
-    if not check_environment(ctx):
-        print_build_summary(ctx)
-        sys.exit(1)
-    
-    # Phase 2: 清理构建目录
-    clean_build_dirs()
-    
-    # Phase 3: PyArmor混淆
-    if not run_pyarmor_obfuscation(ctx):
-        print_build_summary(ctx)
-        sys.exit(1)
-    
-    # Phase 4: 复制资源文件
-    copy_resources(ctx)
-    
-    # Phase 5: PyInstaller打包
-    if not run_pyinstaller_build(ctx):
-        print_build_summary(ctx)
-        sys.exit(1)
-    
-    # Phase 6: UPX压缩
-    run_upx_compression(ctx)
-    
-    # Phase 7: 输出整理
-    copy_final_output(ctx)
-    
-    # 打印构建摘要
-    print_build_summary(ctx)
-    
-    # 返回退出码给AI agent
-    sys.exit(0 if ctx.error_count == 0 else 1)
+    print(f"\n{L.BD}{L.C}")
+    print("╔══════════════════════════════════════════════════════════╗")
+    print("║     TLM Editor - Build Tool (MIT)                       ║")
+    print("║     PyInstaller + Spec + DLL Filter + UPX               ║")
+    print("╚══════════════════════════════════════════════════════════╝")
+    print(f"{L.X}")
+
+    clean()
+    exe_path = build()
+    compress(exe_path)
+    summary(exe_path)
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n[WARNING] Build interrupted by user")
-        sys.exit(130)
+        print("\n中断退出")
+        sys.exit(1)
     except Exception as e:
-        print(f"\n\n[ERROR] Unexpected error: {e}")
+        print(f"\n\033[91m错误: {e}\033[0m")
         import traceback
         traceback.print_exc()
         sys.exit(1)
