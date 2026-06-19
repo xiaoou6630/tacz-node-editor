@@ -9,6 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/legacy-modes": "^6.5.3",
+    "@codemirror/rectangular-selection": "^0.19.2",
+    "@codemirror/search": "^6.7.1",
     "@codemirror/theme-one-dark": "^6.1.2",
     "blockly": "^11.1.1",
     "codemirror": "^6.0.1",

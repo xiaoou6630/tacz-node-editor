@@ -35,8 +35,8 @@ Blockly.Blocks['entry'] = {
   init() {
     this.appendDummyInput().appendField(_b('▶️ 进入状态', '▶️ Entry'))
       .appendField(new Blockly.FieldTextInput('idle'), 'STATE')
-    this.setPreviousStatement(true)
-    this.setNextStatement(true)
+    this.setPreviousStatement(true, 'state_stmt')
+    this.setNextStatement(true, 'state_stmt')
     this.setColour('#FF69B4')
     this.setTooltip(_b('状态开始时执行', 'Executed when state starts'))
   }
@@ -45,18 +45,19 @@ Blockly.Blocks['update_node'] = {
   init() {
     this.appendDummyInput().appendField(_b('🔄 更新状态', '🔄 Update'))
       .appendField(new Blockly.FieldTextInput('idle'), 'STATE')
-    this.setPreviousStatement(true)
-    this.setNextStatement(true)
+    this.appendValueInput('COND').setCheck('Boolean').appendField(_b('条件', 'Condition'))
+    this.setPreviousStatement(true, 'state_stmt')
+    this.setNextStatement(true, 'state_stmt')
     this.setColour('#FF69B4')
-    this.setTooltip(_b('每帧执行', 'Executed every frame'))
+    this.setTooltip(_b('每帧执行，可设条件仅条件满足时执行', 'Executed every frame, optional condition'))
   }
 }
 Blockly.Blocks['exit'] = {
   init() {
     this.appendDummyInput().appendField(_b('⏹️ 退出状态', '⏹️ Exit'))
       .appendField(new Blockly.FieldTextInput('idle'), 'STATE')
-    this.setPreviousStatement(true)
-    this.setNextStatement(true)
+    this.setPreviousStatement(true, 'state_stmt')
+    this.setNextStatement(true, 'state_stmt')
     this.setColour('#FF69B4')
     this.setTooltip(_b('状态结束时执行', 'Executed when state ends'))
   }
@@ -68,8 +69,8 @@ Blockly.Blocks['transition'] = {
       .appendField(_b('→', '→'))
       .appendField(new Blockly.FieldTextInput('idle'), 'TO')
     this.appendValueInput('COND').setCheck('Boolean').appendField(_b('条件', 'Condition'))
-    this.setPreviousStatement(true)
-    this.setNextStatement(true)
+    this.setPreviousStatement(true, 'state_stmt')
+    this.setNextStatement(true, 'state_stmt')
     this.setColour('#FF69B4')
   }
 }
@@ -92,7 +93,7 @@ eventTypes.forEach(([id, zh, en]) => {
     init() {
       this.setPreviousStatement(false)
       this.appendDummyInput().appendField(`🎯 ${_b(zh, en)}`)
-      this.setNextStatement(true)
+      this.setNextStatement(true, 'action_stmt')
       this.setColour('#87CEEB')
       this.setTooltip(_b(`当玩家${zh}时触发`, `Triggered on ${en}`))
     }
@@ -108,7 +109,7 @@ Blockly.Blocks['run_animation'] = {
     this.appendDummyInput().appendField(_b('混合', 'Blend')).appendField(new Blockly.FieldDropdown(BOOL_OPTIONS), 'BLEND')
     this.appendDummyInput().appendField(_b('模式', 'Mode')).appendField(new Blockly.FieldDropdown(MODE_OPTIONS), 'MODE')
     this.appendValueInput('BLEND_TIME').setCheck('Number').appendField(_b('过渡时间', 'Blend Time'))
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#32CD32')
   }
 }
@@ -116,7 +117,7 @@ Blockly.Blocks['stop_animation'] = {
   init() {
     this.appendDummyInput().appendField(_b('⏹️ 停止动画', '⏹️ Stop Animation'))
       .appendField(new Blockly.FieldDropdown(TRACK_OPTIONS), 'TRACK')
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#32CD32')
   }
 }
@@ -125,7 +126,9 @@ Blockly.Blocks['loop_animation'] = {
     this.appendDummyInput().appendField(_b('🔁 循环动画', '🔁 Loop Animation'))
     this.appendDummyInput().appendField(_b('动画', 'Anim')).appendField(new Blockly.FieldTextInput('idle'), 'ANIM')
     this.appendDummyInput().appendField(_b('轨道', 'Track')).appendField(new Blockly.FieldDropdown(TRACK_OPTIONS), 'TRACK')
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.appendDummyInput().appendField(_b('混合', 'Blend')).appendField(new Blockly.FieldDropdown(BOOL_OPTIONS), 'BLEND')
+    this.appendValueInput('BLEND_TIME').setCheck('Number').appendField(_b('过渡时间', 'Blend Time'))
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#32CD32')
   }
 }
@@ -134,9 +137,10 @@ Blockly.Blocks['set_progress'] = {
     this.appendDummyInput().appendField(_b('⏩ 设置进度', '⏩ Set Progress'))
       .appendField(new Blockly.FieldDropdown(TRACK_OPTIONS), 'TRACK')
     this.appendValueInput('PROGRESS').setCheck('Number').appendField(_b('进度', 'Progress'))
-    this.appendDummyInput().appendField(_b('保持', 'Hold')).appendField(new Blockly.FieldDropdown(BOOL_OPTIONS), 'HOLD')
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.appendDummyInput().appendField(_b('归一化', 'Normalize')).appendField(new Blockly.FieldDropdown(BOOL_OPTIONS), 'NORMALIZATION')
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#32CD32')
+    this.setTooltip(_b('设置动画绝对进度，归一化=true时进度为0~1', 'Set absolute progress, normalize=true means 0~1'))
   }
 }
 Blockly.Blocks['adjust_progress'] = {
@@ -144,9 +148,10 @@ Blockly.Blocks['adjust_progress'] = {
     this.appendDummyInput().appendField(_b('⏪ 调整进度', '⏪ Adjust Progress'))
       .appendField(new Blockly.FieldDropdown(TRACK_OPTIONS), 'TRACK')
     this.appendValueInput('DELTA').setCheck('Number').appendField(_b('偏移', 'Delta'))
-    this.appendDummyInput().appendField(_b('保持', 'Hold')).appendField(new Blockly.FieldDropdown(BOOL_OPTIONS), 'HOLD')
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.appendDummyInput().appendField(_b('归一化', 'Normalize')).appendField(new Blockly.FieldDropdown(BOOL_OPTIONS), 'NORMALIZATION')
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#32CD32')
+    this.setTooltip(_b('相对调整进度，归一化=true时偏移为-1~1', 'Adjust progress relatively, normalize=true means -1~1'))
   }
 }
 Blockly.Blocks['play_blended'] = {
@@ -156,8 +161,27 @@ Blockly.Blocks['play_blended'] = {
     this.appendDummyInput().appendField(_b('轨道行', 'Track Line')).appendField(new Blockly.FieldDropdown(TRACK_LINE_OPTIONS), 'LINE')
     this.appendDummyInput().appendField(_b('混合', 'Blend')).appendField(new Blockly.FieldDropdown(BOOL_OPTIONS), 'BLEND')
     this.appendDummyInput().appendField(_b('模式', 'Mode')).appendField(new Blockly.FieldDropdown(MODE_OPTIONS), 'MODE')
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.appendValueInput('BLEND_TIME').setCheck('Number').appendField(_b('过渡时间', 'Blend Time'))
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#32CD32')
+  }
+}
+Blockly.Blocks['pause_animation'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('⏸️ 暂停动画', '⏸️ Pause Animation'))
+      .appendField(new Blockly.FieldDropdown(TRACK_OPTIONS), 'TRACK')
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
+    this.setColour('#32CD32')
+    this.setTooltip(_b('暂停动画，关键帧仍影响模型', 'Pause animation, keyframes still affect model'))
+  }
+}
+Blockly.Blocks['resume_animation'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('▶️ 恢复动画', '▶️ Resume Animation'))
+      .appendField(new Blockly.FieldDropdown(TRACK_OPTIONS), 'TRACK')
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
+    this.setColour('#32CD32')
+    this.setTooltip(_b('恢复暂停的动画', 'Resume a paused animation'))
   }
 }
 
@@ -240,13 +264,40 @@ Blockly.Blocks['check_running'] = {
     this.setColour('#BA55D3')
   }
 }
+Blockly.Blocks['check_holding'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('📌 动画挂起?', '📌 Anim Holding?'))
+      .appendField(new Blockly.FieldDropdown(TRACK_OPTIONS), 'TRACK')
+    this.setOutput(true, 'Boolean')
+    this.setColour('#BA55D3')
+    this.setTooltip(_b('指定轨道是否被挂起（定格在最后一帧）', 'Is the track held at the last frame'))
+  }
+}
+Blockly.Blocks['check_paused'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('⏸️ 动画暂停?', '⏸️ Anim Paused?'))
+      .appendField(new Blockly.FieldDropdown(TRACK_OPTIONS), 'TRACK')
+    this.setOutput(true, 'Boolean')
+    this.setColour('#BA55D3')
+    this.setTooltip(_b('指定轨道是否暂停', 'Is the track paused'))
+  }
+}
+Blockly.Blocks['has_animation'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🎞️ 动画存在?', '🎞️ Has Animation?'))
+      .appendField(new Blockly.FieldTextInput('idle'), 'NAME')
+    this.setOutput(true, 'Boolean')
+    this.setColour('#BA55D3')
+    this.setTooltip(_b('检查动画文件中是否存在指定动画', 'Check if animation prototype exists'))
+  }
+}
 
 // ─── Action Blocks ───
 Blockly.Blocks['pop_shell'] = {
   init() {
     this.appendDummyInput().appendField(_b('💥 抛壳', '💥 Pop Shell'))
     this.appendValueInput('INDEX').setCheck('Number').appendField(_b('位置', 'Index'))
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#FF8C00')
   }
 }
@@ -254,7 +305,7 @@ Blockly.Blocks['trigger_event'] = {
   init() {
     this.appendDummyInput().appendField(_b('⚡ 触发事件', '⚡ Trigger'))
       .appendField(new Blockly.FieldTextInput('INPUT_RELOAD'), 'EVENT')
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#FF8C00')
   }
 }
@@ -262,7 +313,7 @@ Blockly.Blocks['custom_lua'] = {
   init() {
     this.appendDummyInput().appendField(_b('📝 自定义代码', '📝 Custom Lua'))
     this.appendDummyInput().appendField(new Blockly.FieldTextInput('-- code'), 'CODE')
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#9C27B0')
   }
 }
@@ -270,14 +321,14 @@ Blockly.Blocks['hide_crosshair'] = {
   init() {
     this.appendDummyInput().appendField(_b('🎯 隐藏准星', '🎯 Hide Crosshair'))
       .appendField(new Blockly.FieldDropdown(BOOL_OPTIONS), 'HIDE')
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#FF8C00')
   }
 }
 Blockly.Blocks['anchor_walk'] = {
   init() {
     this.appendDummyInput().appendField(_b('🔒 锁定行走', '🔒 Anchor Walk'))
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#FF8C00')
   }
 }
@@ -285,7 +336,7 @@ Blockly.Blocks['play_put_away'] = {
   init() {
     this.appendDummyInput().appendField(_b('📥 播放丢枪', '📥 Play Put Away'))
     this.appendValueInput('TIME').setCheck('Number').appendField(_b('时长', 'Time'))
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#FF8C00')
   }
 }
@@ -293,23 +344,24 @@ Blockly.Blocks['play_reload'] = {
   init() {
     this.appendDummyInput().appendField(_b('🔄 播放换弹', '🔄 Play Reload'))
       .appendField(new Blockly.FieldDropdown(RELOAD_OPTIONS), 'TYPE')
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#FF8C00')
   }
 }
 Blockly.Blocks['play_inspect'] = {
   init() {
     this.appendDummyInput().appendField(_b('🔍 播放检视', '🔍 Play Inspect'))
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#FF8C00')
   }
 }
 Blockly.Blocks['cycle_melee'] = {
   init() {
     this.appendDummyInput().appendField(_b('⚔️ 循环近战', '⚔️ Cycle Melee'))
-    this.appendDummyInput().appendField(_b('前缀', 'Prefix')).appendField(new Blockly.FieldTextInput('melee_'), 'PREFIX')
+    this.appendDummyInput().appendField(_b('前缀', 'Prefix')).appendField(new Blockly.FieldTextInput('melee_bayonet_'), 'PREFIX')
+    this.appendDummyInput().appendField(_b('计数器', 'Counter')).appendField(new Blockly.FieldTextInput('bayonet_counter'), 'COUNTER')
     this.appendValueInput('MAX').setCheck('Number').appendField(_b('最大数', 'Max Count'))
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#FF8C00')
   }
 }
@@ -317,7 +369,7 @@ Blockly.Blocks['track_hold'] = {
   init() {
     this.appendDummyInput().appendField(_b('📌 轨道占位', '📌 Track Hold'))
       .appendField(new Blockly.FieldDropdown(TRACK_OPTIONS), 'TRACK')
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#FF8C00')
   }
 }
@@ -341,9 +393,10 @@ Blockly.Blocks['find_idle_track'] = {
   init() {
     this.appendDummyInput().appendField(_b('🔍 找空闲轨道', '🔍 Find Idle Track'))
     this.appendDummyInput().appendField(new Blockly.FieldDropdown(TRACK_LINE_OPTIONS), 'LINE')
-    this.appendDummyInput().appendField(_b('混合', 'Blend')).appendField(new Blockly.FieldDropdown(BOOL_OPTIONS), 'BLEND')
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.appendDummyInput().appendField(_b('打断挂起', 'Interrupt')).appendField(new Blockly.FieldDropdown(BOOL_OPTIONS), 'INTERRUPT')
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#4A90E2')
+    this.setTooltip(_b('寻找空闲轨道，打断挂起=true时可以占用挂起的轨道', 'Find idle track, interrupt=true can take held tracks'))
   }
 }
 
@@ -351,9 +404,9 @@ Blockly.Blocks['find_idle_track'] = {
 Blockly.Blocks['if_node'] = {
   init() {
     this.appendValueInput('COND').setCheck('Boolean').appendField(_b('❓ 如果', '❓ If'))
-    this.appendStatementInput('DO').appendField(_b('成立', 'True'))
-    this.appendStatementInput('ELSE').appendField(_b('不成立', 'False'))
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.appendStatementInput('DO').setCheck('action_stmt').appendField(_b('成立', 'True'))
+    this.appendStatementInput('ELSE').setCheck('action_stmt').appendField(_b('不成立', 'False'))
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#FFB347')
   }
 }
@@ -361,7 +414,7 @@ Blockly.Blocks['return_state'] = {
   init() {
     this.appendDummyInput().appendField(_b('↩️ 返回状态', '↩️ Return State'))
       .appendField(new Blockly.FieldTextInput('idle'), 'STATE')
-    this.setPreviousStatement(true); this.setNextStatement(true)
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#FFB347')
   }
 }

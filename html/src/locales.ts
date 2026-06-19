@@ -61,6 +61,7 @@ const zh: Record<string, string> = {
   envDOMParser: 'XML 解析',
   confirmNew: '确定要新建吗？未保存的项目将丢失。',
   importFailed: '导入失败，文件格式不正确。',
+  extensions: '扩展',
 }
 
 const en: Record<string, string> = {
@@ -103,4 +104,5 @@ const en: Record<string, string> = {
   envDOMParser: 'XML Parsing',
   confirmNew: 'Create new project? Unsaved changes will be lost.',
   importFailed: 'Import failed. Invalid file format.',
+  extensions: 'Extensions',
 }

@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+venv/
+*.egg-info/
+
+# PyArmor
+pyarmor_runtime_*/
+*.license
+capsule/
+
+# PyInstaller
+*.manifest
+*.spec
+output/
+
+# Nuitka
+*.build/
+*.dist/
+nuitka_dist/
+*.exe
+*.exe.manifest
+nuitka-crash-report.xml
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Encrypted / Sensitive
+*.enc
+et.db*
+
+# UPX
+upx/
+
+# HTML web editor is tracked separately in web1.0.0 branch
+
+# Docs
+TRAE_SOLO_CN-darwin-x64.dmg
+
+# Temporary
+*.tmp
+*.bak
+wget-log
+
+# Pyd build artifacts
+build_pyd/
+
+# Mods (deprecated, keep dir but ignore contents)
+mods/*
+!mods/.gitkeep

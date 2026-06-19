@@ -1,5 +1,206 @@
 <template>
-  <div ref="blocklyDiv" class="blockly-container"></div>
+  <div class="workspace-wrapper">
+    <div ref="blocklyDiv" class="blockly-container"></div>
+    <Transition name="toast">
+      <div v-if="toastMsg" class="blockly-toast" :class="toastType">
+        <span class="toast-icon">{{ toastType === 'error' ? '🚫' : '⚠️' }}</span>
+        {{ toastMsg }}
+      </div>
+    </Transition>
+    <LuaCodeEditor
+      :visible="luaEditorVisible"
+      :code="luaEditorCode"
+      @update:code="onLuaCodeUpdate"
+      @close="luaEditorVisible = false"
+    />
+    <!-- Extension Selector Dialog -->
+    <Teleport to="body">
+      <div class="ext-overlay" v-if="extDialogVisible" @keydown.tab.prevent>
+        <div class="ext-modal">
+          <div class="ext-header">
+            <span>🧩 {{ _b('选择扩展', 'Select Extensions') }}</span>
+            <button class="ext-close" @click="extDialogVisible = false">✕</button>
+          </div>
+          <div class="ext-body">
+            <div class="ext-section-title">{{ _b('官方扩展', 'Official Extensions') }}</div>
+            <div class="ext-list">
+              <div
+                v-for="ext in registeredExts.filter(e => e.official)"
+                :key="ext.id"
+                class="ext-item"
+                :class="{ active: isActive(ext.id) }"
+                @click="toggleExt(ext.id)"
+              >
+                <span class="ext-check">{{ isActive(ext.id) ? '☑' : '☐' }}</span>
+                <span class="ext-icon">{{ ext.icon }}</span>
+                <span class="ext-name">{{ _b(ext.name, ext.nameEn) }}</span>
+                <span class="ext-count">{{ ext.blocks.length }} {{ _b('个积木', 'blocks') }}</span>
+              </div>
+            </div>
+            <div class="ext-section-title" style="margin-top: 12px;">{{ _b('自定义扩展', 'Custom Extensions') }}</div>
+            <div class="ext-list">
+              <div
+                v-for="ext in registeredExts.filter(e => !e.official)"
+                :key="ext.id"
+                class="ext-item"
+                :class="{ active: isActive(ext.id) }"
+              >
+                <span class="ext-check" @click="toggleExt(ext.id)">{{ isActive(ext.id) ? '☑' : '☐' }}</span>
+                <span class="ext-icon">{{ ext.icon }}</span>
+                <span class="ext-name">{{ _b(ext.name, ext.nameEn) }}</span>
+                <span class="ext-count">{{ ext.blocks.length }} {{ _b('个积木', 'blocks') }}</span>
+                <button class="ext-remove" @click="removeCustomExt(ext.id)">🗑️</button>
+              </div>
+              <div v-if="registeredExts.filter(e => !e.official).length === 0" class="ext-empty">
+                {{ _b('暂无自定义扩展', 'No custom extensions') }}
+              </div>
+            </div>
+            <div class="ext-import-row">
+              <button class="ext-import-btn" @click="triggerImportExt">📥 {{ _b('导入扩展文件', 'Import Extension') }}</button>
+              <button class="ext-import-btn" @click="showExtTutorial = true">📖 {{ _b('制作教程', 'Tutorial') }}</button>
+            </div>
+          </div>
+          <div class="ext-footer">
+            <button class="ext-btn confirm" @click="confirmExtensions">{{ _b('确定', 'OK') }}</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Extension Tutorial Dialog -->
+      <div class="ext-overlay" v-if="showExtTutorial" @keydown.tab.prevent>
+        <div class="ext-modal ext-tutorial-modal">
+          <div class="ext-header">
+            <span>📖 {{ _b('扩展制作教程', 'Extension Tutorial') }}</span>
+            <button class="ext-close" @click="showExtTutorial = false">✕</button>
+          </div>
+          <div class="ext-body ext-tutorial-body">
+            <div class="ext-tutorial-content">
+              <h4>1. 扩展文件是什么？</h4>
+              <p>扩展文件是一个 <code>.tacz-ext.json</code> 文件，一个文件 = 一个积木栏分类。</p>
+              <p>导入后会自动在工具箱中添加一个新的积木分类。</p>
+
+              <h4>2. 文件基本结构</h4>
+              <pre class="ext-tutorial-code">{
+  "id": "my_ext",          // 必填，唯一标识（英文+下划线）
+  "name": "我的扩展",       // 必填，中文名
+  "nameEn": "My Extension", // 必填，英文名
+  "colour": "#FF6B6B",     // 必填，分类颜色（十六进制）
+  "icon": "🚀",            // 必填，分类图标（emoji）
+  "blocks": [ ... ],       // 必填，积木定义列表
+  "generators": { ... }    // 必填，代码生成器
+}</pre>
+
+              <h4>3. 积木定义 (blocks)</h4>
+              <p>每个积木定义包含以下字段：</p>
+              <pre class="ext-tutorial-code">{
+  "type": "my_block",        // 必填，积木唯一ID
+  "message0": "🚀 我的积木 %1", // 必填，显示文本
+  "args0": [ ... ],          // 参数列表（可选）
+  "previousStatement": "action_stmt", // 上连接类型（可选）
+  "nextStatement": "action_stmt",     // 下连接类型（可选）
+  "output": "Boolean",       // 输出类型（可选）
+  "colour": "#FF6B6B",       // 积木颜色
+  "tooltip": "提示文字"       // 悬停提示
+}</pre>
+
+              <h4>4. 参数类型 (args0)</h4>
+              <p><b>文本输入框：</b></p>
+              <pre class="ext-tutorial-code">{ "type": "field_input", "name": "KEY", "text": "默认值" }</pre>
+              <p><b>下拉选择：</b></p>
+              <pre class="ext-tutorial-code">{ "type": "field_dropdown", "name": "MODE",
+  "options": [["选项A","a"], ["选项B","b"]] }</pre>
+              <p><b>数字输入：</b></p>
+              <pre class="ext-tutorial-code">{ "type": "field_number", "name": "COUNT", "value": 1 }</pre>
+              <p><b>值输入（接其他积木）：</b></p>
+              <pre class="ext-tutorial-code">{ "type": "input_value", "name": "TIME", "check": "Number" }</pre>
+              <p><b>语句输入（嵌套积木）：</b></p>
+              <pre class="ext-tutorial-code">{ "type": "input_statement", "name": "DO", "check": "action_stmt" }</pre>
+
+              <h4>5. 连接类型</h4>
+              <ul>
+                <li><code>"action_stmt"</code> — 动作积木链（播放动画、触发事件等）</li>
+                <li><code>"state_stmt"</code> — 状态定义链（entry/update/exit）</li>
+                <li><code>"Boolean"</code> — 布尔值输出</li>
+                <li><code>"Number"</code> — 数值输出</li>
+                <li><code>"String"</code> — 字符串输出</li>
+              </ul>
+              <p>有 previousStatement/nextStatement → 语句积木（上下连接）</p>
+              <p>有 output → 值积木（输出到其他积木的输入口）</p>
+
+              <h4>6. 代码生成器 (generators)</h4>
+              <p>key = 积木 type，value = Lua 代码模板字符串</p>
+              <p>用 <code>${字段名}</code> 引用积木字段值</p>
+              <pre class="ext-tutorial-code">"generators": {
+  "my_block": "  context:myMethod(\"${KEY}\", ${COUNT})"
+}</pre>
+              <p>语句积木模板以 2 空格缩进开头，值积木直接返回表达式：</p>
+              <pre class="ext-tutorial-code">// 语句积木（有上下连接）
+"my_action": "  context:doSomething(\"${VALUE}\")"
+
+// 值积木（有输出）
+"my_value": "context:getValue()"</pre>
+
+              <h4>7. 完整示例</h4>
+              <pre class="ext-tutorial-code">{
+  "id": "custom_heal",
+  "name": "治疗系统",
+  "nameEn": "Heal System",
+  "colour": "#4ECDC4",
+  "icon": "💊",
+  "blocks": [
+    {
+      "type": "heal_player",
+      "message0": "💊 治疗 %1 点",
+      "args0": [
+        { "type": "field_number", "name": "AMOUNT", "value": 10 }
+      ],
+      "previousStatement": "action_stmt",
+      "nextStatement": "action_stmt",
+      "colour": "#4ECDC4",
+      "tooltip": "治疗玩家指定点数"
+    },
+    {
+      "type": "get_health",
+      "message0": "💊 当前血量",
+      "output": "Number",
+      "colour": "#4ECDC4",
+      "tooltip": "获取玩家当前血量"
+    },
+    {
+      "type": "is_alive",
+      "message0": "💊 存活?",
+      "output": "Boolean",
+      "colour": "#4ECDC4",
+      "tooltip": "玩家是否存活"
+    }
+  ],
+  "generators": {
+    "heal_player": "  context:heal(${AMOUNT})",
+    "get_health": "context:getHealth()",
+    "is_alive": "context:isAlive()"
+  }
+}</pre>
+
+              <h4>8. 可用的 context 方法</h4>
+              <p>详见 TACZ 源码 <code>LuaGunAnimationConstant.java</code>，常用：</p>
+              <ul>
+                <li><code>context:runAnimation(name, track, blend, mode, time)</code></li>
+                <li><code>context:stopAnimation(track)</code></li>
+                <li><code>context:holdAnimation(track)</code></li>
+                <li><code>context:trigger(input)</code></li>
+                <li><code>context:getAmmoCount()</code></li>
+                <li><code>context:isAiming()</code></li>
+                <li><code>context:getNbtAccessor()</code></li>
+                <li><code>context:getAttachment(type)</code></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <input ref="extFileInput" type="file" accept=".tacz-ext.json" style="display:none" @change="handleImportExt" />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -8,6 +209,15 @@ import * as Blockly from 'blockly'
 import '../blocks'
 import { taczTheme } from '../theme'
 import { _b } from '../locales'
+import LuaCodeEditor from './LuaCodeEditor.vue'
+import {
+  registerExtension, unregisterExtension, activateExtension, deactivateExtension,
+  isActive, getRegisteredExtensions, getActiveExtensions,
+  getExtensionGenerators, getExtensionToolboxCategories,
+  type Extension, type GenFn,
+} from '../extension-registry'
+// Import official extensions (they self-register)
+import '../extension-registry'
 // Blockly 中文语言包（右键菜单等）
 import * as zhHans from 'blockly/msg/zh-hans'
 
@@ -29,6 +239,188 @@ const emit = defineEmits<{ 'code-change': [code: string] }>()
 
 const blocklyDiv = ref<HTMLDivElement | null>(null)
 let workspace: Blockly.WorkspaceSvg | null = null
+
+// ─── Lua Code Editor State ───
+const luaEditorVisible = ref(false)
+const luaEditorCode = ref('')
+let editingBlock: Blockly.Block | null = null
+
+// ─── Extension State ───
+const extDialogVisible = ref(false)
+const showExtTutorial = ref(false)
+const registeredExts = ref<Extension[]>(getRegisteredExtensions())
+const extFileInput = ref<HTMLInputElement>()
+
+function openLuaEditor(block: Blockly.Block) {
+  editingBlock = block
+  luaEditorCode.value = block.getFieldValue('CODE') || '-- code'
+  luaEditorVisible.value = true
+}
+
+function onLuaCodeUpdate(code: string) {
+  if (editingBlock) {
+    const field = editingBlock.getField('CODE')
+    if (field) {
+      field.setValue(code)
+    }
+  }
+}
+
+// ─── Extension Management ───
+function toggleExt(id: string) {
+  if (isActive(id)) {
+    deactivateExtension(id)
+  } else {
+    activateExtension(id)
+  }
+  registeredExts.value = [...getRegisteredExtensions()]
+}
+
+function removeCustomExt(id: string) {
+  if (!confirm(_b('确定删除此扩展？', 'Remove this extension?'))) return
+  unregisterExtension(id)
+  registeredExts.value = [...getRegisteredExtensions()]
+  rebuildToolbox()
+}
+
+function confirmExtensions() {
+  extDialogVisible.value = false
+  rebuildToolbox()
+}
+
+function rebuildToolbox() {
+  if (!workspace) return
+  workspace.updateToolbox(buildToolbox())
+  // Re-generate code with new extension generators
+  handleWorkspaceChange({ type: '' } as any)
+}
+
+function triggerImportExt() {
+  extFileInput.value?.click()
+}
+
+function handleImportExt(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result as string)
+      if (!data.id || !data.blocks || !Array.isArray(data.blocks)) {
+        throw new Error('Invalid extension format')
+      }
+      // Build generators from template strings
+      const generators: Record<string, GenFn> = {}
+      if (data.generators) {
+        for (const [blockType, template] of Object.entries(data.generators)) {
+          if (typeof template === 'string') {
+            generators[blockType] = (block: Blockly.Block, indent = 0) => {
+              let code = template as string
+              // Replace ${FIELD} with block field values
+              for (const field of block.inputList.flatMap(i => i.fieldRow)) {
+                const name = (field as any).name
+                if (name) {
+                  code = code.replace(new RegExp(`\\$\\{${name}\\}`, 'g'), String(block.getFieldValue(name) ?? ''))
+                }
+              }
+              // Apply indent
+              const prefix = '  '.repeat(indent)
+              return code.split('\n').map((line, i) => i === 0 ? prefix + line : prefix + line).join('\n')
+            }
+          }
+        }
+      }
+      const ext: Extension = {
+        id: data.id,
+        name: data.name || data.id,
+        nameEn: data.nameEn || data.name || data.id,
+        colour: data.colour || '#FF6B6B',
+        icon: data.icon || '🧩',
+        official: false,
+        blocks: data.blocks,
+        generators,
+      }
+      registerExtension(ext)
+      activateExtension(ext.id)
+      registeredExts.value = [...getRegisteredExtensions()]
+      showToast(_b(`扩展 "${ext.name}" 导入成功`, `Extension "${ext.nameEn}" imported`))
+    } catch (err) {
+      showToast(_b('扩展格式无效', 'Invalid extension format'), 'error')
+    }
+  }
+  reader.readAsText(file)
+  ;(e.target as HTMLInputElement).value = ''
+}
+
+// ─── Toast Notification ───
+const toastMsg = ref('')
+const toastType = ref<'warning' | 'error'>('warning')
+let toastTimer: ReturnType<typeof setTimeout> | null = null
+function showToast(msg: string, type: 'warning' | 'error' = 'warning') {
+  toastMsg.value = msg
+  toastType.value = type
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toastMsg.value = '' }, 3000)
+}
+
+// ─── Custom Connection Checker ───
+let lastRejection = { reason: '', time: 0 }
+
+function getBlockLabel(block: Blockly.Block): string {
+  for (const input of block.inputList) {
+    for (const field of input.fieldRow) {
+      const t = field.getText()?.trim()
+      if (t) return t
+    }
+  }
+  return block.type
+}
+
+const typeCheckLabels: Record<string, string> = {
+  'state_stmt': '状态定义',
+  'action_stmt': '动作语句',
+  'Boolean': '布尔值',
+  'Number': '数值',
+  'String': '字符串',
+  'Array': '数组',
+  'TrackLine': '轨道行',
+  'Track': '轨道',
+}
+
+class TaczConnectionChecker extends Blockly.ConnectionChecker {
+  doTypeChecks(a: Blockly.Connection, b: Blockly.Connection): boolean {
+    const result = super.doTypeChecks(a, b)
+    if (!result) {
+      const aChecks = a.getCheck() || []
+      const bChecks = b.getCheck() || []
+      const aName = getBlockLabel(a.getSourceBlock())
+      const bName = getBlockLabel(b.getSourceBlock())
+      const aTypes = aChecks.map(c => typeCheckLabels[c] || c).join('/')
+      const bTypes = bChecks.map(c => typeCheckLabels[c] || c).join('/')
+      if (aChecks.length > 0 && bChecks.length > 0) {
+        lastRejection = {
+          reason: _b(
+            `类型不匹配: "${bName}" 无法连接到 "${aName}"（需要 ${aTypes}，提供了 ${bTypes}）`,
+            `Type mismatch: "${bName}" cannot connect to "${aName}" (requires ${aTypes}, provides ${bTypes})`
+          ),
+          time: Date.now()
+        }
+      } else if (aChecks.length > 0) {
+        lastRejection = {
+          reason: _b(
+            `"${bName}" 无法连接到 "${aName}"（需要 ${aTypes} 类型）`,
+            `"${bName}" cannot connect to "${aName}" (requires ${aTypes} type)`
+          ),
+          time: Date.now()
+        }
+      }
+    }
+    return result
+  }
+}
+
+// Register custom checker before workspace creation
+Blockly.registry.register('connectionChecker' as any, 'TaczChecker', TaczConnectionChecker)
 
 // ─── Build Toolbox ───
 function buildToolbox(): Blockly.utils.toolbox.ToolboxDefinition {
@@ -85,6 +477,8 @@ function buildToolbox(): Blockly.utils.toolbox.ToolboxDefinition {
           { kind: 'block', type: 'run_animation' },
           { kind: 'block', type: 'stop_animation' },
           { kind: 'block', type: 'loop_animation' },
+          { kind: 'block', type: 'pause_animation' },
+          { kind: 'block', type: 'resume_animation' },
           { kind: 'block', type: 'set_progress' },
           { kind: 'block', type: 'adjust_progress' },
           { kind: 'block', type: 'play_blended' },
@@ -105,6 +499,9 @@ function buildToolbox(): Blockly.utils.toolbox.ToolboxDefinition {
           { kind: 'block', type: 'check_track_idle' },
           { kind: 'block', type: 'check_walk_dir' },
           { kind: 'block', type: 'check_running' },
+          { kind: 'block', type: 'check_holding' },
+          { kind: 'block', type: 'check_paused' },
+          { kind: 'block', type: 'has_animation' },
         ],
       },
       {
@@ -191,6 +588,23 @@ function buildToolbox(): Blockly.utils.toolbox.ToolboxDefinition {
           { kind: 'block', type: 'text' },
         ],
       },
+      // Separator before extensions
+      { kind: 'sep' },
+      // Extension selector button (always visible)
+      {
+        kind: 'category',
+        name: _b('🧩 扩展', '🧩 Extensions'),
+        colour: '#8B5CF6',
+        contents: [
+          {
+            kind: 'button',
+            text: _b('📦 选择扩展...', '📦 Select Extensions...'),
+            callbackKey: 'openExtDialog',
+          } as any,
+        ],
+      },
+      // Active extension categories
+      ...getExtensionToolboxCategories(),
     ],
   }
 }
@@ -201,14 +615,20 @@ const luaGen: Record<string, (block: Blockly.Block, indent?: number) => string> 
 // Helper: generate code for connected blocks (next chain)
 function genNext(block: Blockly.Block | null, indent = 1): string {
   if (!block) return ''
-  const func = luaGen[block.type]
+  // Skip disabled blocks
+  if (!block.isEnabled()) return genNext(block.getNextBlock(), indent)
+  const extGens = getExtensionGenerators()
+  const allGens = { ...luaGen, ...extGens }
+  const func = allGens[block.type]
   if (!func) return genNext(block.getNextBlock(), indent)
   const lines: string[] = []
   let current: Blockly.Block | null = block
   while (current) {
-    const fn = luaGen[current.type]
-    if (fn) {
-      lines.push(fn(current, indent))
+    if (current.isEnabled()) {
+      const fn = allGens[current.type]
+      if (fn) {
+        lines.push(fn(current, indent))
+      }
     }
     current = current.getNextBlock()
   }
@@ -218,8 +638,10 @@ function genNext(block: Blockly.Block | null, indent = 1): string {
 // Helper: get value from a connected input block
 function genValue(block: Blockly.Block, inputName: string): string {
   const target = block.getInputTargetBlock(inputName)
-  if (!target) return 'nil'
-  const func = luaGen[target.type]
+  if (!target || !target.isEnabled()) return 'nil'
+  const extGens = getExtensionGenerators()
+  const allGens = { ...luaGen, ...extGens }
+  const func = allGens[target.type]
   if (!func) return 'nil'
   return func(target)
 }
@@ -305,21 +727,23 @@ luaGen['stop_animation'] = (block, indent = 0) => {
 luaGen['loop_animation'] = (block, indent = 0) => {
   const anim = block.getFieldValue('ANIM') || 'idle'
   const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
-  return `${'  '.repeat(indent)}context:runAnimation("${anim}", ${track}, false, LOOP, 0)`
+  const blend = block.getFieldValue('BLEND') || 'false'
+  const blendTime = genValue(block, 'BLEND_TIME') || '0'
+  return `${'  '.repeat(indent)}context:runAnimation("${anim}", ${track}, ${blend}, LOOP, ${blendTime})`
 }
 
 luaGen['set_progress'] = (block, indent = 0) => {
   const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
   const progress = genValue(block, 'PROGRESS') || '0'
-  const hold = block.getFieldValue('HOLD') || 'false'
-  return `${'  '.repeat(indent)}context:setAnimationProgress(${track}, ${progress}, ${hold})`
+  const normalization = block.getFieldValue('NORMALIZATION') || 'false'
+  return `${'  '.repeat(indent)}context:setAnimationProgress(${track}, ${progress}, ${normalization})`
 }
 
 luaGen['adjust_progress'] = (block, indent = 0) => {
   const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
   const delta = genValue(block, 'DELTA') || '0'
-  const hold = block.getFieldValue('HOLD') || 'false'
-  return `${'  '.repeat(indent)}context:adjustAnimationProgress(${track}, ${delta}, ${hold})`
+  const normalization = block.getFieldValue('NORMALIZATION') || 'false'
+  return `${'  '.repeat(indent)}context:adjustAnimationProgress(${track}, ${delta}, ${normalization})`
 }
 
 luaGen['play_blended'] = (block, indent = 0) => {
@@ -327,17 +751,26 @@ luaGen['play_blended'] = (block, indent = 0) => {
   const line = block.getFieldValue('LINE') || 'STATIC_TRACK_LINE'
   const blend = block.getFieldValue('BLEND') || 'false'
   const mode = block.getFieldValue('MODE') || 'PLAY_ONCE_STOP'
-  return `${'  '.repeat(indent)}context:runAnimation("${anim}", context:findIdleTrack(${line}, true), ${blend}, ${mode}, 0)`
+  const blendTime = genValue(block, 'BLEND_TIME') || '0'
+  return `${'  '.repeat(indent)}context:runAnimation("${anim}", context:findIdleTrack(${line}, true), ${blend}, ${mode}, ${blendTime})`
+}
+luaGen['pause_animation'] = (block, indent = 0) => {
+  const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
+  return `${'  '.repeat(indent)}context:pauseAnimation(${track})`
+}
+luaGen['resume_animation'] = (block, indent = 0) => {
+  const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
+  return `${'  '.repeat(indent)}context:resumeAnimation(${track})`
 }
 
 // Condition Check Blocks (correct TACZ API)
-luaGen['check_ammo'] = () => 'context:hasAmmo()'
+luaGen['check_ammo'] = () => 'context:hasAmmoToConsume()'
 luaGen['check_ammo_count'] = (block) => {
   const op = block.getFieldValue('OP') || '>='
   const value = genValue(block, 'VALUE') || '0'
   return `context:getAmmoCount() ${op} ${value}`
 }
-luaGen['check_heat'] = () => 'context:isOverHeated()'
+luaGen['check_heat'] = () => 'context:isOverHeat()'
 luaGen['check_aiming'] = (block) => {
   const value = genValue(block, 'PROGRESS') || '0'
   return `context:getAimingProgress() >= ${value}`
@@ -350,7 +783,7 @@ luaGen['check_stopped'] = (block) => {
 luaGen['check_cooldown'] = (block) => {
   const op = block.getFieldValue('OP') || '>='
   const value = genValue(block, 'VALUE') || '0'
-  return `context:getShootCooldown() ${op} ${value}`
+  return `context:getShootCoolDown() ${op} ${value}`
 }
 luaGen['check_track_idle'] = (block) => {
   const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
@@ -358,14 +791,31 @@ luaGen['check_track_idle'] = (block) => {
 }
 luaGen['check_walk_dir'] = (block) => {
   const dir = block.getFieldValue('DIR') || 'forward'
-  return `context:getWalkDirection() == "${dir}"`
+  const dirMap: Record<string, string> = {
+    forward: 'context:isInputUp()',
+    backward: 'context:isInputDown()',
+    strafe: 'context:isInputLeft() or context:isInputRight()',
+  }
+  return dirMap[dir] || 'context:isInputUp()'
 }
 luaGen['check_running'] = () => 'context:isRunning()'
+luaGen['check_holding'] = (block) => {
+  const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
+  return `context:isHolding(${track})`
+}
+luaGen['check_paused'] = (block) => {
+  const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
+  return `context:isPause(${track})`
+}
+luaGen['has_animation'] = (block) => {
+  const name = block.getFieldValue('NAME') || 'idle'
+  return `context:hasAnimationPrototype("${name}")`
+}
 
 // Action Blocks (correct TACZ API)
 luaGen['pop_shell'] = (block, indent = 0) => {
   const index = genValue(block, 'INDEX') || '1'
-  return `${'  '.repeat(indent)}context:popShell(${index})`
+  return `${'  '.repeat(indent)}context:popShellFrom(${index})`
 }
 luaGen['trigger_event'] = (block, indent = 0) => {
   const event = block.getFieldValue('EVENT') || 'INPUT_RELOAD'
@@ -380,7 +830,7 @@ luaGen['hide_crosshair'] = (block, indent = 0) => {
   return `${'  '.repeat(indent)}context:setShouldHideCrossHair(${hide})`
 }
 luaGen['anchor_walk'] = (_block, indent = 0) => {
-  return `${'  '.repeat(indent)}-- anchorWalk (handled by context)`
+  return `${'  '.repeat(indent)}context:anchorWalkDist()`
 }
 luaGen['play_put_away'] = (block, indent = 0) => {
   const time = genValue(block, 'TIME') || '0'
@@ -394,9 +844,10 @@ luaGen['play_inspect'] = (_block, indent = 0) => {
   return `${'  '.repeat(indent)}-- play inspect animation`
 }
 luaGen['cycle_melee'] = (block, indent = 0) => {
-  const prefix = block.getFieldValue('PREFIX') || 'melee_'
+  const prefix = block.getFieldValue('PREFIX') || 'melee_bayonet_'
+  const counter = block.getFieldValue('COUNTER') || 'bayonet_counter'
   const max = genValue(block, 'MAX') || '3'
-  return `${'  '.repeat(indent)}-- cycle melee: ${prefix}1..${max}`
+  return `${'  '.repeat(indent)}-- cycle melee: ${prefix} counter=${counter} max=${max}`
 }
 luaGen['track_hold'] = (block, indent = 0) => {
   const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
@@ -412,8 +863,8 @@ luaGen['get_track'] = (block) => {
 }
 luaGen['find_idle_track'] = (block, indent = 0) => {
   const line = block.getFieldValue('LINE') || 'STATIC_TRACK_LINE'
-  const blend = block.getFieldValue('BLEND') || 'false'
-  return `${'  '.repeat(indent)}context:findIdleTrack(${line}, ${blend})`
+  const interrupt = block.getFieldValue('INTERRUPT') || 'false'
+  return `${'  '.repeat(indent)}context:findIdleTrack(${line}, ${interrupt})`
 }
 
 // Logic Blocks
@@ -433,9 +884,9 @@ luaGen['return_state'] = (block, indent = 0) => {
 }
 
 // Animation Mode Blocks (outputs)
-luaGen['loop_mode'] = () => '"LOOP"'
-luaGen['play_once_stop'] = () => '"PLAY_ONCE_STOP"'
-luaGen['play_once_hold'] = () => '"PLAY_ONCE_HOLD"'
+luaGen['loop_mode'] = () => 'LOOP'
+luaGen['play_once_stop'] = () => 'PLAY_ONCE_STOP'
+luaGen['play_once_hold'] = () => 'PLAY_ONCE_HOLD'
 
 // Math Blocks
 luaGen['math_add'] = (block) => {
@@ -492,22 +943,21 @@ function generateCode(): string {
   if (!workspace) return ''
   const topBlocks = workspace.getTopBlocks(true)
 
-  // Collect event hat blocks and other blocks
+  // Merge extension generators
+  const extGens = getExtensionGenerators()
+  const allGens = { ...luaGen, ...extGens }
+
+  // Collect event hat blocks and other blocks (skip disabled)
   const eventBlocks: Blockly.Block[] = []
   const stateBlocks: Blockly.Block[] = []
-  const initBlocks: Blockly.Block[] = []
-  const exitBlocks: Blockly.Block[] = []
 
   for (const block of topBlocks) {
+    if (!block.isEnabled()) continue
     const type = block.type
     if (type.startsWith('event_')) {
       eventBlocks.push(block)
-    } else if (type === 'entry' || type === 'update_node' || type === 'exit') {
+    } else if (type === 'entry' || type === 'update_node' || type === 'exit' || type === 'transition') {
       stateBlocks.push(block)
-    } else if (type === 'transition') {
-      stateBlocks.push(block)
-    } else if (luaGen[type]) {
-      // Other blocks at top level
     }
   }
 
@@ -517,19 +967,11 @@ function generateCode(): string {
 
   // Initialize function
   lines.push('function M:initialize(context)')
-  for (const b of initBlocks) {
-    const code = luaGen[b.type]?.(b, 1)
-    if (code) lines.push(code)
-  }
   lines.push('end')
   lines.push('')
 
   // Exit function
   lines.push('function M:exit(context)')
-  for (const b of exitBlocks) {
-    const code = luaGen[b.type]?.(b, 1)
-    if (code) lines.push(code)
-  }
   lines.push('end')
   lines.push('')
 
@@ -592,8 +1034,85 @@ function generateCode(): string {
   return lines.join('\n')
 }
 
+// ─── Workspace Validation ───
+let isValidating = false
+// Track blocks disabled by the system (not by user)
+const systemDisabledBlocks = new WeakSet<Blockly.Block>()
+// Track blocks visually disabled because their hat block is disabled
+const cascadeDisabledBlocks = new WeakSet<Blockly.Block>()
+
+function isHatBlock(block: Blockly.Block): boolean {
+  return block.type.startsWith('event_') || !block.previousConnection
+}
+
+function validateWorkspace() {
+  if (!workspace || isValidating) return
+  isValidating = true
+  try {
+    const blocks = workspace.getAllBlocks(true)
+
+    // First pass: system validation
+    for (const block of blocks) {
+      const issue = validateBlock(block)
+      if (issue) {
+        if (block.isEnabled()) {
+          block.setWarningText(issue)
+          block.setEnabled(false)
+          systemDisabledBlocks.add(block)
+        }
+      } else if (systemDisabledBlocks.has(block)) {
+        block.setWarningText(null)
+        block.setEnabled(true)
+        systemDisabledBlocks.delete(block)
+      }
+    }
+
+    // Second pass: cascade disabled state from hat blocks
+    // Re-enable any previously cascade-disabled blocks first
+    for (const block of blocks) {
+      if (cascadeDisabledBlocks.has(block)) {
+        block.setEnabled(true)
+        cascadeDisabledBlocks.delete(block)
+      }
+    }
+
+    // Then cascade: if a hat block is disabled, disable all blocks below it
+    for (const block of blocks) {
+      if (!block.isEnabled() && isHatBlock(block)) {
+        let next = block.getNextBlock()
+        while (next) {
+          if (next.isEnabled()) {
+            next.setEnabled(false)
+            cascadeDisabledBlocks.add(next)
+          }
+          next = next.getNextBlock()
+        }
+      }
+    }
+  } finally {
+    isValidating = false
+  }
+}
+
+function validateBlock(block: Blockly.Block): string | null {
+  return null
+}
+
 // ─── Workspace Change Handler ───
-function handleWorkspaceChange() {
+function handleWorkspaceChange(event: Blockly.Events.Abstract) {
+  // Show toast for rejected connections
+  if (event.type === Blockly.Events.BLOCK_MOVE) {
+    if (lastRejection.reason && Date.now() - lastRejection.time < 1000) {
+      showToast(lastRejection.reason, 'error')
+      lastRejection.reason = ''
+    }
+  }
+
+  // Validate workspace (debounce inside to avoid re-entrancy)
+  if (!isValidating) {
+    validateWorkspace()
+  }
+
   const code = generateCode()
   emit('code-change', code)
 }
@@ -625,6 +1144,15 @@ onMounted(() => {
     trashcan: true,
     renderer: 'zelos',
     media: '/media/',
+    plugins: {
+      'connectionChecker': 'TaczChecker',
+    },
+  })
+
+  // Register extension dialog button callback
+  workspace.registerButtonCallback('openExtDialog', () => {
+    registeredExts.value = [...getRegisteredExtensions()]
+    extDialogVisible.value = true
   })
 
   // Expose workspace for save/load
@@ -639,13 +1167,40 @@ onMounted(() => {
     getCode() { return generateCode() },
     set code(v: string) {},
     get code() { return generateCode() },
+    openExtDialog() {
+      registeredExts.value = [...getRegisteredExtensions()]
+      extDialogVisible.value = true
+    },
   }
 
   // Listen for workspace changes
   workspace.addChangeListener(handleWorkspaceChange)
 
+  // Double-click on custom_lua block opens the code editor
+  // Use Blockly's built-in gesture system
+  let lastClickTime = 0
+  let lastClickBlockId = ''
+  workspace.addChangeListener((event: Blockly.Events.Abstract) => {
+    if (event.type === Blockly.Events.CLICK) {
+      const clickEvent = event as any
+      if (clickEvent.blockId) {
+        const now = Date.now()
+        if (clickEvent.blockId === lastClickBlockId && now - lastClickTime < 400) {
+          const block = workspace!.getBlockById(clickEvent.blockId)
+          if (block && block.type === 'custom_lua') {
+            openLuaEditor(block)
+          }
+          lastClickBlockId = ''
+        } else {
+          lastClickBlockId = clickEvent.blockId
+        }
+        lastClickTime = now
+      }
+    }
+  })
+
   // Initial code generation
-  handleWorkspaceChange()
+  handleWorkspaceChange({ type: '' } as any)
 })
 
 onBeforeUnmount(() => {
@@ -658,8 +1213,76 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.workspace-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
 .blockly-container {
   width: 100%;
   height: 100%;
 }
+.blockly-toast {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  z-index: 100;
+  pointer-events: none;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.blockly-toast.warning {
+  background: rgba(255, 152, 0, 0.92);
+  color: white;
+}
+.blockly-toast.error {
+  background: rgba(229, 57, 53, 0.92);
+  color: white;
+}
+.toast-enter-active { transition: all 0.3s ease; }
+.toast-leave-active { transition: all 0.3s ease; }
+.toast-enter-from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+.toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(10px); }
+
+/* Extension Dialog */
+.ext-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.ext-modal { width: 420px; max-width: 90vw; max-height: 80vh; background: #1e1e2e; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+.ext-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #181825; border-bottom: 1px solid #313244; color: #cdd6f4; font-size: 14px; font-weight: 600; }
+.ext-close { background: none; border: none; color: #6c7086; font-size: 18px; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.ext-close:hover { background: #313244; color: #cdd6f4; }
+.ext-body { padding: 16px; overflow-y: auto; flex: 1; }
+.ext-section-title { font-size: 12px; color: #6c7086; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.ext-list { display: flex; flex-direction: column; gap: 4px; }
+.ext-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; cursor: pointer; transition: background 0.15s; font-size: 13px; color: #cdd6f4; }
+.ext-item:hover { background: #313244; }
+.ext-item.active { background: rgba(139, 92, 246, 0.15); }
+.ext-check { font-size: 14px; min-width: 18px; }
+.ext-icon { font-size: 16px; }
+.ext-name { flex: 1; }
+.ext-count { font-size: 11px; color: #6c7086; }
+.ext-remove { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 4px; opacity: 0.5; }
+.ext-remove:hover { opacity: 1; background: rgba(229, 57, 53, 0.2); }
+.ext-empty { font-size: 12px; color: #6c7086; padding: 8px; text-align: center; }
+.ext-import-row { display: flex; gap: 8px; margin-top: 12px; }
+.ext-import-btn { flex: 1; padding: 8px 12px; background: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; font-size: 12px; cursor: pointer; transition: background 0.15s; }
+.ext-import-btn:hover { background: #45475a; }
+.ext-footer { padding: 10px 16px; background: #181825; border-top: 1px solid #313244; display: flex; justify-content: flex-end; }
+.ext-btn { padding: 6px 20px; border-radius: 6px; border: none; font-size: 13px; cursor: pointer; transition: background 0.15s; }
+.ext-btn.confirm { background: #8B5CF6; color: white; }
+.ext-btn.confirm:hover { background: #7C3AED; }
+.ext-tutorial-modal { width: 600px; max-width: 90vw; }
+.ext-tutorial-body { max-height: 60vh; overflow-y: auto; }
+.ext-tutorial-code { font-size: 12px; color: #cdd6f4; background: #181825; padding: 12px; border-radius: 8px; white-space: pre-wrap; word-break: break-all; line-height: 1.6; margin: 6px 0; font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; }
+.ext-tutorial-content h4 { color: #cba6f7; margin: 14px 0 6px 0; font-size: 14px; }
+.ext-tutorial-content p { color: #bac2de; font-size: 12px; margin: 4px 0; line-height: 1.5; }
+.ext-tutorial-content code { background: #313244; padding: 1px 5px; border-radius: 3px; font-size: 11px; color: #a6e3a1; }
+.ext-tutorial-content ul { color: #bac2de; font-size: 12px; padding-left: 20px; margin: 4px 0; }
+.ext-tutorial-content li { margin: 3px 0; line-height: 1.5; }
+.ext-tutorial-content b { color: #f9e2af; }
 </style>

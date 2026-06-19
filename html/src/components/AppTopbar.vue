@@ -29,6 +29,10 @@
           <div class="dropdown-item" @click="handleAbout">ℹ️ {{ t('about') }}</div>
         </div>
       </div>
+
+      <div class="topbar-btn topbar-ext-btn" @click="openExtDialog">
+        🧩 {{ t('extensions') }}
+      </div>
     </div>
 
     <div class="topbar-right">
@@ -207,6 +211,13 @@ function handleHelp() { showSettings.value = false; showHelp.value = true }
 
 function handleAbout() { showSettings.value = false; showAbout.value = true }
 
+function openExtDialog() {
+  showSettings.value = false
+  showFile.value = false
+  const ws = (window as any).__tacz_workspace
+  if (ws?.openExtDialog) ws.openExtDialog()
+}
+
 function openGitHub() {
   window.open('https://github.com/xiaoou6630/tacz-node-editor/tree/web1.0.0', '_blank')
 }
@@ -267,4 +278,6 @@ function openGitHub() {
 .about-copy { font-size: 11px; color: #666; margin-top: 12px; }
 .modal-btn { margin-top: 16px; padding: 8px 24px; background: #FFD93D; color: #1E1E30; border: none; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer; float: right; transition: background 0.15s; }
 .modal-btn:hover { background: #FFC107; }
+.topbar-ext-btn { background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(139, 92, 246, 0.4); }
+.topbar-ext-btn:hover { background: rgba(139, 92, 246, 0.35); }
 </style>
