@@ -13,19 +13,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import AppTopbar from './components/AppTopbar.vue'
 import BlocklyWorkspace from './components/BlocklyWorkspace.vue'
 import CodeEditor from './components/CodeEditor.vue'
 
 const luaCode = ref('-- 在此添加积木，代码将自动生成')
+const hasContent = ref(false)
 
 const handleCodeChange = (code: string) => {
   luaCode.value = code || '-- 在此添加积木，代码将自动生成'
-  // Expose code for topbar export
+  hasContent.value = !!code && code.trim().length > 0
   const ws = (window as any).__tacz_workspace
   if (ws) ws.code = luaCode.value
 }
+
+const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
+  if (hasContent.value) {
+    e.preventDefault()
+  }
+}
+
+onMounted(() => window.addEventListener('beforeunload', beforeUnloadHandler))
+onUnmounted(() => window.removeEventListener('beforeunload', beforeUnloadHandler))
 </script>
 
 <style scoped>
