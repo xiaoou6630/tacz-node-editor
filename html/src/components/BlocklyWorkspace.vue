@@ -1265,7 +1265,30 @@ onMounted(() => {
     loadExtensionData(data: { activeIds?: string[], customExts?: any[] }) {
       if (data.customExts?.length) {
         for (const raw of data.customExts) {
-          try { registerExtension(raw) } catch {}
+          if (!raw.id || !raw.blocks) continue
+          const generators: Record<string, GenFn> = {}
+          if (raw.generators) {
+            for (const [blockType, template] of Object.entries(raw.generators)) {
+              if (typeof template === 'string') {
+                generators[blockType] = (block: Blockly.Block, indent = 0) => {
+                  let code = template as string
+                  for (const field of block.inputList.flatMap(i => i.fieldRow)) {
+                    const name = (field as any).name
+                    if (name) code = code.replace(new RegExp(`\\$\\{${name}\\}`, 'g'), String(block.getFieldValue(name) ?? ''))
+                  }
+                  const prefix = '  '.repeat(indent)
+                  return code.split('\n').map((line, i) => i === 0 ? prefix + line : prefix + line).join('\n')
+                }
+              }
+            }
+          }
+          const ext: Extension = {
+            id: raw.id, name: raw.name || raw.id, nameEn: raw.nameEn || raw.name || raw.id,
+            colour: raw.colour || '#FF6B6B', icon: raw.icon || '🧩', official: false,
+            blocks: raw.blocks, generators,
+            _rawJson: raw,
+          } as any
+          try { registerExtension(ext) } catch {}
         }
       }
       if (data.activeIds?.length) {
