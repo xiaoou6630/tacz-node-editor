@@ -204,11 +204,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as Blockly from 'blockly'
 import '../blocks'
 import { taczTheme } from '../theme'
-import { _b } from '../locales'
+import { _b, i18n } from '../locales'
 import LuaCodeEditor from './LuaCodeEditor.vue'
 import {
   registerExtension, unregisterExtension, activateExtension, deactivateExtension,
@@ -339,7 +339,8 @@ function handleImportExt(e: Event) {
         official: false,
         blocks: data.blocks,
         generators,
-      }
+        _rawJson: data,
+      } as any
       registerExtension(ext)
       activateExtension(ext.id)
       registeredExts.value = [...getRegisteredExtensions()]
@@ -1259,6 +1260,81 @@ onMounted(() => {
 
   // Listen for workspace changes
   workspace.addChangeListener(handleWorkspaceChange)
+
+  // 语言切换：保存XML和扩展状态到localStorage，重载页面后恢复
+  watch(() => i18n.value.lang, () => {
+    const xml = Blockly.Xml.workspaceToDom(workspace!)
+    const xmlStr = Blockly.Xml.domToText(xml)
+    localStorage.setItem('tacz_workspace', xmlStr)
+    // 保存激活的扩展ID列表
+    const activeIds = getActiveExtensions().map(e => e.id)
+    localStorage.setItem('tacz_active_exts', JSON.stringify(activeIds))
+    // 保存自定义扩展的原始JSON数据
+    const customExts = getRegisteredExtensions().filter(e => !e.official)
+    const customJsons = customExts.map(e => (e as any)._rawJson).filter(Boolean)
+    if (customJsons.length) localStorage.setItem('tacz_custom_exts', JSON.stringify(customJsons))
+    window.location.reload()
+  })
+
+  // 页面加载后恢复之前保存的工作区
+  const saved = localStorage.getItem('tacz_workspace')
+  if (saved) {
+    try {
+      const xml = Blockly.utils.xml.textToDom(saved)
+      Blockly.Xml.domToWorkspace(xml, workspace!)
+    } catch {}
+    localStorage.removeItem('tacz_workspace')
+  }
+
+  // 恢复自定义扩展
+  const savedCustomExts = localStorage.getItem('tacz_custom_exts')
+  if (savedCustomExts) {
+    try {
+      const extList = JSON.parse(savedCustomExts)
+      for (const data of extList) {
+        if (!data.id || !data.blocks) continue
+        const generators: Record<string, GenFn> = {}
+        if (data.generators) {
+          for (const [blockType, template] of Object.entries(data.generators)) {
+            if (typeof template === 'string') {
+              generators[blockType] = (block: Blockly.Block, indent = 0) => {
+                let code = template as string
+                for (const field of block.inputList.flatMap(i => i.fieldRow)) {
+                  const name = (field as any).name
+                  if (name) code = code.replace(new RegExp(`\\$\\{${name}\\}`, 'g'), String(block.getFieldValue(name) ?? ''))
+                }
+                const prefix = '  '.repeat(indent)
+                return code.split('\n').map((line, i) => i === 0 ? prefix + line : prefix + line).join('\n')
+              }
+            }
+          }
+        }
+        const ext: Extension = {
+          id: data.id, name: data.name || data.id, nameEn: data.nameEn || data.name || data.id,
+          colour: data.colour || '#FF6B6B', icon: data.icon || '🧩', official: false,
+          blocks: data.blocks, generators,
+          _rawJson: data,
+        } as any
+        registerExtension(ext)
+      }
+    } catch {}
+    localStorage.removeItem('tacz_custom_exts')
+  }
+
+  // 恢复激活的扩展
+  const savedActiveExts = localStorage.getItem('tacz_active_exts')
+  if (savedActiveExts) {
+    try {
+      const ids: string[] = JSON.parse(savedActiveExts)
+      for (const id of ids) activateExtension(id)
+    } catch {}
+    localStorage.removeItem('tacz_active_exts')
+  }
+
+  // 恢复扩展后刷新工具箱
+  if (savedCustomExts || savedActiveExts) {
+    rebuildToolbox()
+  }
 
   // Double-click on custom_lua block opens the code editor
   // Use Blockly's built-in gesture system
