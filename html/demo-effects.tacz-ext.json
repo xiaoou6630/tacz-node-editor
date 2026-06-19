@@ -1,0 +1,120 @@
+{
+  "id": "demo_effects",
+  "name": "演示特效",
+  "nameEn": "Demo Effects",
+  "colour": "#FF9800",
+  "icon": "✨",
+  "blocks": [
+    {
+      "type": "spawn_particle",
+      "message0": "✨ 生成粒子 %1 %2 偏移X %3 偏移Y %4 偏移Z %5",
+      "args0": [
+        { "type": "field_input", "name": "PARTICLE", "text": "minecraft:flame" },
+        { "type": "input_dummy" },
+        { "type": "input_value", "name": "OX", "check": "Number" },
+        { "type": "input_value", "name": "OY", "check": "Number" },
+        { "type": "input_value", "name": "OZ", "check": "Number" }
+      ],
+      "previousStatement": "action_stmt",
+      "nextStatement": "action_stmt",
+      "colour": "#FF9800",
+      "tooltip": "在枪口生成粒子效果"
+    },
+    {
+      "type": "play_sound_effect",
+      "message0": "🔊 播放音效 %1 音量 %2",
+      "args0": [
+        { "type": "field_input", "name": "SOUND", "text": "minecraft:entity.arrow.shoot" },
+        { "type": "input_value", "name": "VOLUME", "check": "Number" }
+      ],
+      "previousStatement": "action_stmt",
+      "nextStatement": "action_stmt",
+      "colour": "#FF9800",
+      "tooltip": "播放指定音效"
+    },
+    {
+      "type": "screen_shake",
+      "message0": "📳 屏幕震动 强度 %1 时长 %2",
+      "args0": [
+        { "type": "input_value", "name": "INTENSITY", "check": "Number" },
+        { "type": "input_value", "name": "DURATION", "check": "Number" }
+      ],
+      "previousStatement": "action_stmt",
+      "nextStatement": "action_stmt",
+      "colour": "#FF9800",
+      "tooltip": "触发屏幕震动效果"
+    },
+    {
+      "type": "flash_screen",
+      "message0": "💥 屏幕闪光 颜色R %1 G %2 B %3 透明度 %4",
+      "args0": [
+        { "type": "input_value", "name": "R", "check": "Number" },
+        { "type": "input_value", "name": "G", "check": "Number" },
+        { "type": "input_value", "name": "B", "check": "Number" },
+        { "type": "input_value", "name": "ALPHA", "check": "Number" }
+      ],
+      "previousStatement": "action_stmt",
+      "nextStatement": "action_stmt",
+      "colour": "#FF9800",
+      "tooltip": "触发屏幕闪光效果"
+    },
+    {
+      "type": "set_camera_recoil",
+      "message0": "🎥 镜头后坐 俯仰 %1 偏航 %2 恢复速度 %3",
+      "args0": [
+        { "type": "input_value", "name": "PITCH", "check": "Number" },
+        { "type": "input_value", "name": "YAW", "check": "Number" },
+        { "type": "input_value", "name": "RECOVERY", "check": "Number" }
+      ],
+      "previousStatement": "action_stmt",
+      "nextStatement": "action_stmt",
+      "colour": "#FF9800",
+      "tooltip": "施加镜头后坐力"
+    },
+    {
+      "type": "random_number",
+      "message0": "🎲 随机数 最小 %1 最大 %2",
+      "args0": [
+        { "type": "input_value", "name": "MIN", "check": "Number" },
+        { "type": "input_value", "name": "MAX", "check": "Number" }
+      ],
+      "output": "Number",
+      "colour": "#FF9800",
+      "tooltip": "生成指定范围的随机数"
+    },
+    {
+      "type": "math_clamp",
+      "message0": "🔢 限制范围 值 %1 最小 %2 最大 %3",
+      "args0": [
+        { "type": "input_value", "name": "VALUE", "check": "Number" },
+        { "type": "input_value", "name": "MIN", "check": "Number" },
+        { "type": "input_value", "name": "MAX", "check": "Number" }
+      ],
+      "output": "Number",
+      "colour": "#FF9800",
+      "tooltip": "将数值限制在指定范围内"
+    },
+    {
+      "type": "lerp_value",
+      "message0": "📈 线性插值 A %1 B %2 进度 %3",
+      "args0": [
+        { "type": "input_value", "name": "A", "check": "Number" },
+        { "type": "input_value", "name": "B", "check": "Number" },
+        { "type": "input_value", "name": "T", "check": "Number" }
+      ],
+      "output": "Number",
+      "colour": "#FF9800",
+      "tooltip": "在A和B之间按进度T(0~1)插值"
+    }
+  ],
+  "generators": {
+    "spawn_particle": "context:spawnParticle(\"${PARTICLE}\", 0, 0, 0)",
+    "play_sound_effect": "context:playSound(\"${SOUND}\", 1.0)",
+    "screen_shake": "context:screenShake(0, 0)",
+    "flash_screen": "context:flashScreen(0, 0, 0, 0)",
+    "set_camera_recoil": "context:setCameraRecoil(0, 0, 0)",
+    "random_number": "math.random(0, 0)",
+    "math_clamp": "math.max(0, math.min(0, 0))",
+    "lerp_value": "0 + (0 - 0) * 0"
+  }
+}

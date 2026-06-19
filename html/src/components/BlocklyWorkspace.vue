@@ -1256,6 +1256,25 @@ onMounted(() => {
       registeredExts.value = [...getRegisteredExtensions()]
       extDialogVisible.value = true
     },
+    getExtensionData() {
+      const activeIds = getActiveExtensions().map(e => e.id)
+      const customExts = getRegisteredExtensions().filter(e => !e.official)
+      const customJsons = customExts.map(e => (e as any)._rawJson).filter(Boolean)
+      return { activeIds, customExts: customJsons }
+    },
+    loadExtensionData(data: { activeIds?: string[], customExts?: any[] }) {
+      if (data.customExts?.length) {
+        for (const raw of data.customExts) {
+          try { registerExtension(raw) } catch {}
+        }
+      }
+      if (data.activeIds?.length) {
+        for (const id of data.activeIds) {
+          try { activateExtension(id) } catch {}
+        }
+      }
+      rebuildToolbox()
+    },
   }
 
   // Listen for workspace changes

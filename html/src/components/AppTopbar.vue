@@ -164,11 +164,13 @@ function handleExportProject() {
   const ws = (window as any).__tacz_workspace
   if (!ws?.getXML) return
   const serializer = new XMLSerializer()
+  const extData = ws.getExtensionData ? ws.getExtensionData() : {}
   const data = JSON.stringify({
     name: projectName.value,
     version: '1.0.0',
     updated: new Date().toISOString(),
     xml: serializer.serializeToString(ws.getXML()),
+    extensions: extData,
   }, null, 2)
   const blob = new Blob([data], { type: 'application/octet-stream' })
   const url = URL.createObjectURL(blob)
@@ -187,6 +189,7 @@ function handleImport(e: Event) {
       if (!p.xml || !p.version) throw Error()
       const ws = (window as any).__tacz_workspace
       if (ws?.loadXML) ws.loadXML(p.xml)
+      if (ws?.loadExtensionData && p.extensions) ws.loadExtensionData(p.extensions)
       projectName.value = p.name || '导入项目'
     } catch { alert(t('importFailed')) }
   }
