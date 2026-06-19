@@ -502,6 +502,13 @@ function buildToolbox(): Blockly.utils.toolbox.ToolboxDefinition {
           { kind: 'block', type: 'check_holding' },
           { kind: 'block', type: 'check_paused' },
           { kind: 'block', type: 'has_animation' },
+          { kind: 'block', type: 'check_bullet_in_barrel' },
+          { kind: 'block', type: 'check_aiming' },
+          { kind: 'block', type: 'check_crawl' },
+          { kind: 'block', type: 'check_crouching' },
+          { kind: 'block', type: 'check_jumping' },
+          { kind: 'block', type: 'check_reload_state' },
+          { kind: 'block', type: 'check_fire_mode' },
         ],
       },
       {
@@ -519,16 +526,43 @@ function buildToolbox(): Blockly.utils.toolbox.ToolboxDefinition {
           { kind: 'block', type: 'play_inspect' },
           { kind: 'block', type: 'cycle_melee' },
           { kind: 'block', type: 'track_hold' },
+          { kind: 'block', type: 'adjust_shoot_interval' },
         ],
       },
       {
         kind: 'category',
-        name: _b('🔗 轨道系统', '🔗 Tracks'),
-        colour: '#4A90E2',
+        name: _b('📊 数值', '📊 Values'),
+        colour: '#9370DB',
+        contents: [
+          { kind: 'block', type: 'get_ammo_count' },
+          { kind: 'block', type: 'get_max_ammo_count' },
+          { kind: 'block', type: 'get_mag_extent_level' },
+          { kind: 'block', type: 'get_aiming_progress' },
+          { kind: 'block', type: 'get_fire_mode' },
+          { kind: 'block', type: 'get_reload_state_type' },
+          { kind: 'block', type: 'get_shoot_interval' },
+          { kind: 'block', type: 'get_shoot_cooldown' },
+          { kind: 'block', type: 'get_last_shoot_time' },
+          { kind: 'block', type: 'get_current_timestamp' },
+          { kind: 'block', type: 'get_walk_dist' },
+          { kind: 'block', type: 'get_partial_ticks' },
+          { kind: 'block', type: 'get_put_away_time' },
+          { kind: 'block', type: 'get_state_machine_params' },
+          { kind: 'block', type: 'should_hide_crosshair' },
+        ],
+      },
+      {
+        kind: 'category', name: _b('🛤️ 轨道系统', '🛤️ Track System'), colour: '#4A90E2',
         contents: [
           { kind: 'block', type: 'track_line' },
           { kind: 'block', type: 'get_track' },
           { kind: 'block', type: 'find_idle_track' },
+          { kind: 'block', type: 'add_track_line' },
+          { kind: 'block', type: 'assign_new_track' },
+          { kind: 'block', type: 'ensure_track_line_size' },
+          { kind: 'block', type: 'ensure_tracks_amount' },
+          { kind: 'block', type: 'get_singleton_track' },
+          { kind: 'block', type: 'get_track_line_size' },
         ],
       },
       {
@@ -771,10 +805,6 @@ luaGen['check_ammo_count'] = (block) => {
   return `context:getAmmoCount() ${op} ${value}`
 }
 luaGen['check_heat'] = () => 'context:isOverHeat()'
-luaGen['check_aiming'] = (block) => {
-  const value = genValue(block, 'PROGRESS') || '0'
-  return `context:getAimingProgress() >= ${value}`
-}
 luaGen['check_ground'] = () => 'context:isOnGround()'
 luaGen['check_stopped'] = (block) => {
   const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
@@ -794,7 +824,8 @@ luaGen['check_walk_dir'] = (block) => {
   const dirMap: Record<string, string> = {
     forward: 'context:isInputUp()',
     backward: 'context:isInputDown()',
-    strafe: 'context:isInputLeft() or context:isInputRight()',
+    left: 'context:isInputLeft()',
+    right: 'context:isInputRight()',
   }
   return dirMap[dir] || 'context:isInputUp()'
 }
@@ -810,6 +841,19 @@ luaGen['check_paused'] = (block) => {
 luaGen['has_animation'] = (block) => {
   const name = block.getFieldValue('NAME') || 'idle'
   return `context:hasAnimationPrototype("${name}")`
+}
+
+// New condition blocks
+luaGen['check_bullet_in_barrel'] = () => 'context:hasBulletInBarrel()'
+luaGen['check_aiming'] = () => 'context:isAiming()'
+luaGen['check_crawl'] = () => 'context:isCrawl()'
+luaGen['check_crouching'] = () => 'context:isCrouching()'
+luaGen['check_jumping'] = () => 'context:isInputJumping()'
+luaGen['check_reload_state'] = (block) => {
+  return `context:getReloadStateType() ${block.getFieldValue('OP')} ${block.getFieldValue('STATE')}`
+}
+luaGen['check_fire_mode'] = (block) => {
+  return `context:getFireMode() ${block.getFieldValue('OP')} ${block.getFieldValue('MODE')}`
 }
 
 // Action Blocks (correct TACZ API)
@@ -853,6 +897,27 @@ luaGen['track_hold'] = (block, indent = 0) => {
   const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
   return `${'  '.repeat(indent)}context:holdAnimation(${track})`
 }
+luaGen['adjust_shoot_interval'] = (block, indent = 0) => {
+  const delta = genValue(block, 'DELTA') || '0'
+  return `${'  '.repeat(indent)}context:adjustClientShootInterval(${delta})`
+}
+
+// Value Output Blocks
+luaGen['get_ammo_count'] = () => 'context:getAmmoCount()'
+luaGen['get_max_ammo_count'] = () => 'context:getMaxAmmoCount()'
+luaGen['get_aiming_progress'] = () => 'context:getAimingProgress()'
+luaGen['get_fire_mode'] = () => 'context:getFireMode()'
+luaGen['get_reload_state_type'] = () => 'context:getReloadStateType()'
+luaGen['get_shoot_interval'] = () => 'context:getShootInterval()'
+luaGen['get_shoot_cooldown'] = () => 'context:getShootCoolDown()'
+luaGen['get_last_shoot_time'] = () => 'context:getLastShootTimestamp()'
+luaGen['get_current_timestamp'] = () => 'context:getCurrentTimestamp()'
+luaGen['get_mag_extent_level'] = () => 'context:getMagExtentLevel()'
+luaGen['get_walk_dist'] = () => 'context:getWalkDist()'
+luaGen['get_partial_ticks'] = () => 'context:getPartialTicks()'
+luaGen['get_put_away_time'] = () => 'context:getPutAwayTime()'
+luaGen['get_state_machine_params'] = () => 'context:getStateMachineParams()'
+luaGen['should_hide_crosshair'] = () => 'context:shouldHideCrossHair()'
 
 // Track System Blocks (correct TACZ API)
 luaGen['track_line'] = () => '-- track_line'
@@ -866,6 +931,25 @@ luaGen['find_idle_track'] = (block, indent = 0) => {
   const interrupt = block.getFieldValue('INTERRUPT') || 'false'
   return `${'  '.repeat(indent)}context:findIdleTrack(${line}, ${interrupt})`
 }
+luaGen['add_track_line'] = () => 'context:addTrackLine()'
+luaGen['assign_new_track'] = (block) => {
+  const index = genValue(block, 'INDEX') || '0'
+  return `context:assignNewTrack(${index})`
+}
+luaGen['ensure_track_line_size'] = (block, indent = 0) => {
+  const size = genValue(block, 'SIZE') || '0'
+  return `${'  '.repeat(indent)}context:ensureTrackLineSize(${size})`
+}
+luaGen['ensure_tracks_amount'] = (block, indent = 0) => {
+  const index = genValue(block, 'INDEX') || '0'
+  const amount = genValue(block, 'AMOUNT') || '0'
+  return `${'  '.repeat(indent)}context:ensureTracksAmount(${index}, ${amount})`
+}
+luaGen['get_singleton_track'] = (block) => {
+  const index = genValue(block, 'INDEX') || '0'
+  return `context:getAsSingletonTrack(${index})`
+}
+luaGen['get_track_line_size'] = () => 'context:getTrackLineSize()'
 
 // Logic Blocks
 luaGen['if_node'] = (block, indent = 0) => {

@@ -22,6 +22,17 @@ const MODE_OPTIONS: [string, string][] = [
   ['LOOP', 'LOOP'],
 ]
 const RELOAD_OPTIONS: [string, string][] = [['tactical', 'tactical'], ['empty', 'empty']]
+const RELOAD_STATE_OPTIONS: [string, string][] = [
+  ['NOT_RELOADING', 'NOT_RELOADING'], ['EMPTY_RELOAD_FEEDING', 'EMPTY_RELOAD_FEEDING'],
+  ['EMPTY_RELOAD_FINISHING', 'EMPTY_RELOAD_FINISHING'], ['TACTICAL_RELOAD_FEEDING', 'TACTICAL_RELOAD_FEEDING'],
+  ['TACTICAL_RELOAD_FINISHING', 'TACTICAL_RELOAD_FINISHING'],
+]
+const FIRE_MODE_OPTIONS: [string, string][] = [
+  ['AUTO', 'AUTO'], ['SEMI', 'SEMI'], ['BURST', 'BURST'], ['UNKNOWN', 'UNKNOWN'],
+]
+const WALK_DIR_OPTIONS: [string, string][] = [
+  ['forward', 'forward'], ['backward', 'backward'], ['left', 'left'], ['right', 'right'],
+]
 
 // ─── State Definition Blocks ───
 Blockly.Blocks['state_define'] = {
@@ -252,7 +263,7 @@ Blockly.Blocks['check_track_idle'] = {
 Blockly.Blocks['check_walk_dir'] = {
   init() {
     this.appendDummyInput().appendField(_b('🚶 行走方向', '🚶 Walk Direction'))
-      .appendField(new Blockly.FieldDropdown(DIR_OPTIONS), 'DIR')
+      .appendField(new Blockly.FieldDropdown(WALK_DIR_OPTIONS), 'DIR')
     this.setOutput(true, 'Boolean')
     this.setColour('#BA55D3')
   }
@@ -289,6 +300,66 @@ Blockly.Blocks['has_animation'] = {
     this.setOutput(true, 'Boolean')
     this.setColour('#BA55D3')
     this.setTooltip(_b('检查动画文件中是否存在指定动画', 'Check if animation prototype exists'))
+  }
+}
+Blockly.Blocks['check_bullet_in_barrel'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🔫 枪膛有弹?', '🔫 Bullet In Barrel?'))
+    this.setOutput(true, 'Boolean')
+    this.setColour('#BA55D3')
+    this.setTooltip(_b('枪膛中是否有子弹，开膛待击枪械返回false', 'Whether there is a bullet in the barrel'))
+  }
+}
+Blockly.Blocks['check_aiming'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🎯 正在瞄准?', '🎯 Is Aiming?'))
+    this.setOutput(true, 'Boolean')
+    this.setColour('#BA55D3')
+    this.setTooltip(_b('玩家当前是否在瞄准', 'Whether the player is aiming'))
+  }
+}
+Blockly.Blocks['check_crawl'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🧎 匍匐中?', '🧎 Is Crawling?'))
+    this.setOutput(true, 'Boolean')
+    this.setColour('#BA55D3')
+    this.setTooltip(_b('玩家当前是否正在匍匐', 'Whether the player is crawling'))
+  }
+}
+Blockly.Blocks['check_crouching'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🦵 蹲伏中?', '🦵 Is Crouching?'))
+    this.setOutput(true, 'Boolean')
+    this.setColour('#BA55D3')
+    this.setTooltip(_b('玩家是否蹲伏', 'Whether the player is crouching'))
+  }
+}
+Blockly.Blocks['check_jumping'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('⬆️ 跳跃中?', '⬆️ Is Jumping?'))
+    this.setOutput(true, 'Boolean')
+    this.setColour('#BA55D3')
+    this.setTooltip(_b('玩家是否按下跳跃键', 'Whether the player is pressing jump'))
+  }
+}
+Blockly.Blocks['check_reload_state'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🔄 换弹状态', '🔄 Reload State'))
+      .appendField(new Blockly.FieldDropdown(OPERATOR_OPTIONS), 'OP')
+      .appendField(new Blockly.FieldDropdown(RELOAD_STATE_OPTIONS), 'STATE')
+    this.setOutput(true, 'Boolean')
+    this.setColour('#BA55D3')
+    this.setTooltip(_b('检查当前换弹状态', 'Check current reload state'))
+  }
+}
+Blockly.Blocks['check_fire_mode'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🔫 开火模式', '🔫 Fire Mode'))
+      .appendField(new Blockly.FieldDropdown(OPERATOR_OPTIONS), 'OP')
+      .appendField(new Blockly.FieldDropdown(FIRE_MODE_OPTIONS), 'MODE')
+    this.setOutput(true, 'Boolean')
+    this.setColour('#BA55D3')
+    this.setTooltip(_b('检查当前开火模式', 'Check current fire mode'))
   }
 }
 
@@ -373,6 +444,122 @@ Blockly.Blocks['track_hold'] = {
     this.setColour('#FF8C00')
   }
 }
+Blockly.Blocks['adjust_shoot_interval'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('⏱️ 调整射击间隔', '⏱️ Adjust Shoot Interval'))
+    this.appendValueInput('DELTA').setCheck('Number').appendField(_b('偏移(ms)', 'Delta(ms)'))
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
+    this.setColour('#FF8C00')
+    this.setTooltip(_b('调整客户端射击间隔，正数增加负数减少', 'Adjust client shoot interval, positive adds, negative reduces'))
+  }
+}
+
+// ─── Value Output Blocks ───
+Blockly.Blocks['get_ammo_count'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🔢 弹药数量', '🔢 Ammo Count'))
+    this.setOutput(true, 'Number'); this.setColour('#9370DB')
+    this.setTooltip(_b('获取弹匣中的备弹数', 'Get ammo count in magazine'))
+  }
+}
+Blockly.Blocks['get_max_ammo_count'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🔢 最大弹药数', '🔢 Max Ammo Count'))
+    this.setOutput(true, 'Number'); this.setColour('#9370DB')
+    this.setTooltip(_b('获取弹匣最大备弹数', 'Get max ammo count'))
+  }
+}
+Blockly.Blocks['get_aiming_progress'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🎯 瞄准进度', '🎯 Aiming Progress'))
+    this.setOutput(true, 'Number'); this.setColour('#9370DB')
+    this.setTooltip(_b('获取瞄准进度0~1', 'Get aiming progress 0~1'))
+  }
+}
+Blockly.Blocks['get_fire_mode'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🔫 开火模式值', '🔫 Fire Mode Value'))
+    this.setOutput(true, 'Number'); this.setColour('#9370DB')
+    this.setTooltip(_b('获取FireMode枚举值', 'Get FireMode ordinal'))
+  }
+}
+Blockly.Blocks['get_reload_state_type'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🔄 换弹状态值', '🔄 Reload State Value'))
+    this.setOutput(true, 'Number'); this.setColour('#9370DB')
+    this.setTooltip(_b('获取ReloadState枚举值', 'Get ReloadState ordinal'))
+  }
+}
+Blockly.Blocks['get_shoot_interval'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('⏱️ 射击间隔', '⏱️ Shoot Interval'))
+    this.setOutput(true, 'Number'); this.setColour('#9370DB')
+    this.setTooltip(_b('获取射击间隔(ms)', 'Get shoot interval in ms'))
+  }
+}
+Blockly.Blocks['get_shoot_cooldown'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('⏱️ 射击冷却值', '⏱️ Shoot Cooldown Value'))
+    this.setOutput(true, 'Number'); this.setColour('#9370DB')
+    this.setTooltip(_b('获取射击冷却(ms)', 'Get shoot cooldown in ms'))
+  }
+}
+Blockly.Blocks['get_last_shoot_time'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('⏱️ 上次射击时间', '⏱️ Last Shoot Time'))
+    this.setOutput(true, 'Number'); this.setColour('#9370DB')
+    this.setTooltip(_b('获取上次射击的系统时间戳(ms)，切枪时重置为-1', 'Get last shoot timestamp, resets to -1 on weapon switch'))
+  }
+}
+Blockly.Blocks['get_current_timestamp'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🕐 当前时间戳', '🕐 Current Timestamp'))
+    this.setOutput(true, 'Number'); this.setColour('#9370DB')
+    this.setTooltip(_b('获取当前系统时间(ms)', 'Get current system timestamp in ms'))
+  }
+}
+Blockly.Blocks['get_mag_extent_level'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('📦 扩容等级', '📦 Mag Extent Level'))
+    this.setOutput(true, 'Number'); this.setColour('#9370DB')
+    this.setTooltip(_b('获取扩容等级0~3', 'Get magazine extent level 0~3'))
+  }
+}
+Blockly.Blocks['get_walk_dist'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🚶 行走距离', '🚶 Walk Distance'))
+    this.setOutput(true, 'Number'); this.setColour('#9370DB')
+    this.setTooltip(_b('获取与锚点相对的行走距离', 'Get walk distance relative to anchor'))
+  }
+}
+Blockly.Blocks['get_partial_ticks'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🕐 插值时间', '🕐 Partial Ticks'))
+    this.setOutput(true, 'Number'); this.setColour('#9370DB')
+    this.setTooltip(_b('获取最后一次更新时的partialTicks', 'Get partial ticks of last update'))
+  }
+}
+Blockly.Blocks['get_put_away_time'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('📥 收枪时长', '📥 Put Away Time'))
+    this.setOutput(true, 'Number'); this.setColour('#9370DB')
+    this.setTooltip(_b('获取收起物品动画的建议时长', 'Get suggested put-away animation duration'))
+  }
+}
+Blockly.Blocks['get_state_machine_params'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('📋 状态机参数', '📋 State Machine Params'))
+    this.setOutput(true, 'Table'); this.setColour('#9370DB')
+    this.setTooltip(_b('获取display中声明的状态机参数', 'Get state machine params declared in display'))
+  }
+}
+Blockly.Blocks['should_hide_crosshair'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🎯 需隐藏准星?', '🎯 Should Hide Crosshair?'))
+    this.setOutput(true, 'Boolean'); this.setColour('#9370DB')
+    this.setTooltip(_b('查询是否需要隐藏准星', 'Query whether crosshair should be hidden'))
+  }
+}
 
 // ─── Track System Blocks ───
 Blockly.Blocks['track_line'] = {
@@ -397,6 +584,55 @@ Blockly.Blocks['find_idle_track'] = {
     this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
     this.setColour('#4A90E2')
     this.setTooltip(_b('寻找空闲轨道，打断挂起=true时可以占用挂起的轨道', 'Find idle track, interrupt=true can take held tracks'))
+  }
+}
+Blockly.Blocks['add_track_line'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('➕ 添加轨道行', '➕ Add Track Line'))
+    this.setOutput(true, 'Number'); this.setColour('#4A90E2')
+    this.setTooltip(_b('分配一个新的轨道行，返回下标', 'Allocate a new track line, returns index'))
+  }
+}
+Blockly.Blocks['assign_new_track'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('➕ 分配轨道', '➕ Assign New Track'))
+    this.appendValueInput('INDEX').setCheck('Number').appendField(_b('轨道行', 'Track Line'))
+    this.setOutput(true, 'Number'); this.setColour('#4A90E2')
+    this.setTooltip(_b('为指定轨道行分配新轨道，返回轨道下标', 'Assign new track to track line, returns track index'))
+  }
+}
+Blockly.Blocks['ensure_track_line_size'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('📏 确保轨道行数', '📏 Ensure Track Line Size'))
+    this.appendValueInput('SIZE').setCheck('Number').appendField(_b('数量', 'Size'))
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
+    this.setColour('#4A90E2')
+    this.setTooltip(_b('确保轨道行的数量', 'Ensure the number of track lines'))
+  }
+}
+Blockly.Blocks['ensure_tracks_amount'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('📏 确保轨道数', '📏 Ensure Tracks Amount'))
+    this.appendValueInput('INDEX').setCheck('Number').appendField(_b('轨道行', 'Track Line'))
+    this.appendValueInput('AMOUNT').setCheck('Number').appendField(_b('数量', 'Amount'))
+    this.setPreviousStatement(true, 'action_stmt'); this.setNextStatement(true, 'action_stmt')
+    this.setColour('#4A90E2')
+    this.setTooltip(_b('保证指定轨道行有足够的轨道数量', 'Ensure enough tracks in a track line'))
+  }
+}
+Blockly.Blocks['get_singleton_track'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('🔗 单例轨道', '🔗 Singleton Track'))
+    this.appendValueInput('INDEX').setCheck('Number').appendField(_b('轨道行', 'Track Line'))
+    this.setOutput(true, 'Number'); this.setColour('#4A90E2')
+    this.setTooltip(_b('获取单轨道行中的轨道，没有则分配', 'Get singleton track from track line, allocates if none'))
+  }
+}
+Blockly.Blocks['get_track_line_size'] = {
+  init() {
+    this.appendDummyInput().appendField(_b('📊 轨道行数', '📊 Track Line Size'))
+    this.setOutput(true, 'Number'); this.setColour('#4A90E2')
+    this.setTooltip(_b('获取轨道行的数量', 'Get the number of track lines'))
   }
 }
 
