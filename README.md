@@ -1,5 +1,7 @@
 # 🧩 TACZ Lua 编辑器 (Web版)
 
+> 感谢 [YYN0114](https://github.com/YYN0114) 提供项目图标。
+
 > 基于 Blockly 的 TACZ (Timeless and Classics Zero) 枪械动画状态机图形化编程工具。
 > 拖拽积木，生成 Lua 状态机脚本 — 无需手写代码。
 
