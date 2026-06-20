@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>404 - 迷路了</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+.stars {
+  position:fixed; inset:0; pointer-events:none;
+  background:
+    radial-gradient(2px 2px at 20px 30px, #fff, transparent),
+    radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,.8), transparent),
+    radial-gradient(1px 1px at 90px 40px, #fff, transparent),
+    radial-gradient(1px 1px at 130px 80px, rgba(255,255,255,.6), transparent),
+    radial-gradient(2px 2px at 160px 30px, #fff, transparent);
+  background-size:200px 100px;
+  animation: twinkle 4s ease-in-out infinite alternate;
+}
+@keyframes twinkle { from{opacity:.5} to{opacity:1} }
+.container {
+  text-align:center; z-index:1; padding:40px;
+}
+.code {
+  font-size:120px; font-weight:900;
+  background: linear-gradient(135deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  background-clip:text;
+  line-height:1;
+}
+h1 {
+  font-size:28px; margin-top:16px; color:#feca57;
+}
+.subtitle {
+  font-size:18px; margin-top:12px; color:#a0a0c0; line-height:1.8;
+}
+.btn-home {
+  display:inline-block; margin-top:32px;
+  padding:14px 36px; font-size:18px; font-weight:600;
+  color:#fff; background:linear-gradient(135deg,#667eea,#764ba2);
+  border:none; border-radius:50px; cursor:pointer;
+  text-decoration:none; transition:all .3s ease;
+  box-shadow:0 4px 15px rgba(102,126,234,.4);
+}
+.btn-home:hover {
+  transform:translateY(-3px) scale(1.05);
+  box-shadow:0 8px 25px rgba(102,126,234,.6);
+}
+.footer {
+  position:fixed; bottom:16px; width:100%; text-align:center;
+  font-size:13px; color:#555; z-index:1;
+}
+.footer span { color:#ff6b6b; }
+</style>
+</head>
+<body>
+<div class="stars"></div>
+<div class="container">
+  <div class="code">404</div>
+  <h1>迷路了吧？</h1>
+  <p class="subtitle">这个才是真入口</p>
+  <a class="btn-home" href="https://taczluablockly-3flhm01cu.maozi.io/">带我回家</a>
+</div>
+<div class="footer">来自于被<span>404</span>逼疯了的站长</div>
+</body>
+</html>
