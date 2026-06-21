@@ -1,6 +1,7 @@
 <template>
   <div class="workspace-wrapper">
     <div ref="blocklyDiv" class="blockly-container"></div>
+    <div v-if="showEmptyHint" class="workspace-hint">{{ _b('从左侧工具箱拖入事件积木开始编程', 'Drag blocks from the toolbox to start') }}</div>
     <Transition name="toast">
       <div v-if="toastMsg" class="blockly-toast" :class="toastType">
         <span class="toast-icon">{{ toastType === 'error' ? '🚫' : '⚠️' }}</span>
@@ -25,7 +26,7 @@
             <div class="ext-section-title">{{ _b('官方扩展', 'Official Extensions') }}</div>
             <div class="ext-list">
               <div
-                v-for="ext in registeredExts.filter(e => e.official)"
+                v-for="ext in registeredExts.filter(e => e.official && (currentMode !== 'kjs' ? true : !!e.kjsGenerators))"
                 :key="ext.id"
                 class="ext-item"
                 :class="{ active: isActive(ext.id) }"
@@ -74,34 +75,52 @@
             <button class="ext-close" @click="showExtTutorial = false">✕</button>
           </div>
           <div class="ext-body ext-tutorial-body">
+            <div class="ext-tutorial-mode-banner">{{ currentMode === 'kjs' ? _b('📌 当前模式: KJS — 使用 .kjs-ext.json 格式', '📌 Mode: KJS — Use .kjs-ext.json format') : _b('📌 当前模式: TACZ — 使用 .tacz-ext.json 格式', '📌 Mode: TACZ — Use .tacz-ext.json format') }}</div>
             <div class="ext-tutorial-content">
               <h4>1. 扩展文件是什么？</h4>
-              <p>扩展文件是一个 <code>.tacz-ext.json</code> 文件，一个文件 = 一个积木栏分类。</p>
-              <p>导入后会自动在工具箱中添加一个新的积木分类。</p>
+              <p>扩展文件是一个 <code>{{ currentMode === 'kjs' ? '.kjs-ext.json' : '.tacz-ext.json' }}</code> 文件，一个文件 = 一个积木栏分类。</p>
+              <p>导入后会自动在{{ currentMode === 'kjs' ? 'KJS 模式' : 'TACZ 模式' }}工具箱中添加一个新的积木分类。</p>
 
               <h4>2. 文件基本结构</h4>
-              <pre class="ext-tutorial-code">{
+              <pre class="ext-tutorial-code">{{ currentMode === 'kjs' ? `{
   "id": "my_ext",          // 必填，唯一标识（英文+下划线）
   "name": "我的扩展",       // 必填，中文名
   "nameEn": "My Extension", // 必填，英文名
   "colour": "#FF6B6B",     // 必填，分类颜色（十六进制）
   "icon": "🚀",            // 必填，分类图标（emoji）
   "blocks": [ ... ],       // 必填，积木定义列表
-  "generators": { ... }    // 必填，代码生成器
-}</pre>
+  "generators": { ... }    // 必填，JS 代码生成器
+}` : `{
+  "id": "my_ext",
+  "name": "我的扩展",
+  "nameEn": "My Extension",
+  "colour": "#FF6B6B",
+  "icon": "🚀",
+  "blocks": [ ... ],
+  "generators": { ... }
+}` }}</pre>
 
               <h4>3. 积木定义 (blocks)</h4>
               <p>每个积木定义包含以下字段：</p>
-              <pre class="ext-tutorial-code">{
-  "type": "my_block",        // 必填，积木唯一ID
-  "message0": "🚀 我的积木 %1", // 必填，显示文本
-  "args0": [ ... ],          // 参数列表（可选）
-  "previousStatement": "action_stmt", // 上连接类型（可选）
-  "nextStatement": "action_stmt",     // 下连接类型（可选）
-  "output": "Boolean",       // 输出类型（可选）
-  "colour": "#FF6B6B",       // 积木颜色
-  "tooltip": "提示文字"       // 悬停提示
-}</pre>
+              <pre class="ext-tutorial-code">{{ currentMode === 'kjs' ? `{
+  "type": "my_block",
+  "message0": "🚀 我的积木 %1",
+  "args0": [ ... ],
+  "previousStatement": "kjs_stmt",
+  "nextStatement": "kjs_stmt",
+  "output": "Boolean",
+  "colour": "#FF6B6B",
+  "tooltip": "提示文字"
+}` : `{
+  "type": "my_block",
+  "message0": "🚀 我的积木 %1",
+  "args0": [ ... ],
+  "previousStatement": "action_stmt",
+  "nextStatement": "action_stmt",
+  "output": "Boolean",
+  "colour": "#FF6B6B",
+  "tooltip": "提示文字"
+}` }}</pre>
 
               <h4>4. 参数类型 (args0)</h4>
               <p><b>文本输入框：</b></p>
@@ -118,28 +137,68 @@
 
               <h4>5. 连接类型</h4>
               <ul>
-                <li><code>"action_stmt"</code> — 动作积木链（播放动画、触发事件等）</li>
-                <li><code>"state_stmt"</code> — 状态定义链（entry/update/exit）</li>
-                <li><code>"Boolean"</code> — 布尔值输出</li>
-                <li><code>"Number"</code> — 数值输出</li>
-                <li><code>"String"</code> — 字符串输出</li>
+                <li><code>{{ currentMode === 'kjs' ? '"kjs_stmt"' : '"action_stmt"' }}</code> — {{ currentMode === 'kjs' ? _b('KJS 语句链', 'KJS statement chain') : _b('动作积木链（播放动画、触发事件等）', 'Action statement chain') }}</li>
+                <li><code>"state_stmt"</code> — {{ _b('状态定义链（entry/update/exit）', 'State definition chain') }}</li>
+                <li><code>"Boolean"</code> — {{ _b('布尔值输出', 'Boolean output') }}</li>
+                <li><code>"Number"</code> — {{ _b('数值输出', 'Number output') }}</li>
+                <li><code>"String"</code> — {{ _b('字符串输出', 'String output') }}</li>
               </ul>
               <p>有 previousStatement/nextStatement → 语句积木（上下连接）</p>
               <p>有 output → 值积木（输出到其他积木的输入口）</p>
 
               <h4>6. 代码生成器 (generators)</h4>
-              <p>key = 积木 type，value = Lua 代码模板字符串</p>
+              <p>key = 积木 type，value = {{ currentMode === 'kjs' ? 'JS' : 'Lua' }} 代码模板字符串</p>
               <p>用 <code>${字段名}</code> 引用积木字段值</p>
               <pre class="ext-tutorial-code">"generators": {
-  "my_block": "  context:myMethod(\"${KEY}\", ${COUNT})"
+  "my_block": {{ currentMode === 'kjs' ? '"  console.log(\\"${KEY}\\", ${COUNT})"' : '"  context:myMethod(\\"${KEY}\\", ${COUNT})"' }}
 }</pre>
               <p>语句积木模板以 2 空格缩进开头，值积木直接返回表达式：</p>
               <pre class="ext-tutorial-code">// 语句积木（有上下连接）
-"my_action": "  context:doSomething(\"${VALUE}\")"
+{{ currentMode === 'kjs' ? '"my_action": "  console.log(\\"${VALUE}\\")"' : '"my_action": "  context:doSomething(\\"${VALUE}\\")"' }}
 
 // 值积木（有输出）
-"my_value": "context:getValue()"</pre>
+{{ currentMode === 'kjs' ? '"my_value": "event.getEntity()"' : '"my_value": "context:getValue()"' }}</pre>
 
+              <template v-if="currentMode === 'kjs'">
+              <h4>7. 可用的 JS API</h4>
+              <p>KJS 模式生成的代码运行在 KubeJS 环境中，支持以下事件组：</p>
+              <p><b>KubeJS 核心事件：</b></p>
+              <ul>
+                <li><code>BlockEvents.rightClicked/leftClicked/placed/broken/drops/farmlandTrampled/randomTick</code></li>
+                <li><code>EntityEvents.death/beforeHurt/afterHurt/spawned/drops/checkSpawn</code></li>
+                <li><code>PlayerEvents.loggedIn/loggedOut/respawned/chat/advancement/inventoryChanged/tick</code></li>
+                <li><code>ItemEvents.rightClicked/crafted/smelted/foodEaten/pickedUp/dropped/modifyTooltips</code></li>
+                <li><code>LevelEvents.loaded/saved/unloaded/tick/beforeExplosion/afterExplosion</code></li>
+                <li><code>ServerEvents.loaded/unloaded/tick/recipes/afterRecipes/tags/command/basicCommand</code></li>
+                <li><code>ClientEvents.loggedIn/loggedOut/tick/lang/leftDebugInfo/rightDebugInfo/highlight</code></li>
+                <li><code>StartupEvents.init/postInit/registry/modifyCreativeTab</code></li>
+              </ul>
+              <p><b>TaCZJS 事件：</b></p>
+              <ul>
+                <li><code>TaCZServerEvents.entityShoot/entityAim/entityMelee/entityReload</code></li>
+                <li><code>TaCZServerEvents.gunDataLoad/attachmentDataLoad/attachmentTagsLoad</code></li>
+                <li><code>TaCZServerEvents.gunIndexLoad/ammoIndexLoad/attachmentIndexLoad</code></li>
+                <li><code>TaCZClientEvents.gunIndexLoad/playerAim/playerShoot/playerMelee/playerReload</code></li>
+                <li><code>TaCZStartupEvents.recipeLoadBegin/recipeLoad/recipeLoadEnd</code></li>
+                <li><code>TaCZStartupEvents.gunDataLoad/attachmentDataLoad/attachmentTagsLoad</code></li>
+                <li><code>TaCZStartupEvents.gunIndexLoad/ammoIndexLoad/attachmentIndexLoad</code></li>
+              </ul>
+              <p><b>KubeJS-Create 事件：</b></p>
+              <ul>
+                <li><code>CreateEvents.boilerHeatHandler/pipeFluidEffect/spoutHandler</code></li>
+              </ul>
+              <p><b>事件对象常用方法：</b></p>
+              <ul>
+                <li><code>event.getEntity()</code> — 获取实体</li>
+                <li><code>event.getPlayer()</code> / <code>event.getLevel()</code> — 获取玩家/世界</li>
+                <li><code>event.getBlock()</code> / <code>event.getItem()</code> / <code>event.getSource()</code> — 获取方块/物品/伤害源</li>
+                <li><code>event.getGunId()</code> / <code>event.getGunItem()</code> — 获取枪械信息（TaCZJS）</li>
+                <li><code>event.cancel()</code> / <code>event.exit(value)</code> — 取消/退出事件</li>
+                <li><code>event.getDamage()</code> / <code>event.setDamage(value)</code> — 获取/设置伤害</li>
+                <li><code>event.remove(filter)</code> / <code>event.add(tag, values)</code> — 配方/标签操作</li>
+              </ul>
+              </template>
+              <template v-else>
               <h4>7. 完整示例</h4>
               <pre class="ext-tutorial-code">{
   "id": "custom_heal",
@@ -175,7 +234,7 @@
     }
   ],
   "generators": {
-    "heal_player": "  context:heal(${AMOUNT})",
+    "heal_player": "  context:heal($" + "{AMOUNT})",
     "get_health": "context:getHealth()",
     "is_alive": "context:isAlive()"
   }
@@ -193,13 +252,14 @@
                 <li><code>context:getNbtAccessor()</code></li>
                 <li><code>context:getAttachment(type)</code></li>
               </ul>
+              </template>
             </div>
           </div>
         </div>
       </div>
     </Teleport>
 
-    <input ref="extFileInput" type="file" accept=".tacz-ext.json" style="display:none" @change="handleImportExt" />
+    <input ref="extFileInput" type="file" :accept="currentMode === 'kjs' ? '.kjs-ext.json' : '.tacz-ext.json'" style="display:none" @change="handleImportExt" />
   </div>
 </template>
 
@@ -220,6 +280,8 @@ import {
 import '../extension-registry'
 // Blockly 中文语言包（右键菜单等）
 import * as zhHans from 'blockly/msg/zh-hans'
+// KJS 模式状态
+import { currentMode, activeKJSTab, kjsWorkspaceXMLs, type KJSTab } from '../mode'
 
 // Event types list (shared between toolbox and codegen)
 const eventTypes: [string, string, string][] = [
@@ -239,6 +301,10 @@ const emit = defineEmits<{ 'code-change': [code: string] }>()
 
 const blocklyDiv = ref<HTMLDivElement | null>(null)
 let workspace: Blockly.WorkspaceSvg | null = null
+// 保存 TACZ 模式状态（用于模式切换恢复）
+let savedTaczXml = ''
+let savedTaczExts: string[] = []
+const showEmptyHint = ref(true)
 
 // ─── Lua Code Editor State ───
 const luaEditorVisible = ref(false)
@@ -311,6 +377,7 @@ function handleImportExt(e: Event) {
       }
       // Build generators from template strings
       const generators: Record<string, GenFn> = {}
+      const kjsGenerators: Record<string, GenFn> = {}
       if (data.generators) {
         for (const [blockType, template] of Object.entries(data.generators)) {
           if (typeof template === 'string') {
@@ -330,6 +397,24 @@ function handleImportExt(e: Event) {
           }
         }
       }
+      // 读取 KJS 生成器（扩展可同时包含两种生成器）
+      if (data.kjsGenerators) {
+        for (const [blockType, template] of Object.entries(data.kjsGenerators)) {
+          if (typeof template === 'string') {
+            kjsGenerators[blockType] = (block: Blockly.Block, indent = 0) => {
+              let code = template as string
+              for (const field of block.inputList.flatMap(i => i.fieldRow)) {
+                const name = (field as any).name
+                if (name) {
+                  code = code.replace(new RegExp(`\\$\\{${name}\\}`, 'g'), String(block.getFieldValue(name) ?? ''))
+                }
+              }
+              const prefix = '  '.repeat(indent)
+              return code.split('\n').map((line, i) => i === 0 ? prefix + line : prefix + line).join('\n')
+            }
+          }
+        }
+      }
       const ext: Extension = {
         id: data.id,
         name: data.name || data.id,
@@ -339,11 +424,13 @@ function handleImportExt(e: Event) {
         official: false,
         blocks: data.blocks,
         generators,
+        kjsGenerators: Object.keys(kjsGenerators).length > 0 ? kjsGenerators : undefined,
         _rawJson: data,
       } as any
       registerExtension(ext)
       activateExtension(ext.id)
       registeredExts.value = [...getRegisteredExtensions()]
+      rebuildToolbox()
       showToast(_b(`扩展 "${ext.name}" 导入成功`, `Extension "${ext.nameEn}" imported`))
     } catch (err) {
       showToast(_b('扩展格式无效', 'Invalid extension format'), 'error')
@@ -390,6 +477,10 @@ const typeCheckLabels: Record<string, string> = {
 
 class TaczConnectionChecker extends Blockly.ConnectionChecker {
   doTypeChecks(a: Blockly.Connection, b: Blockly.Connection): boolean {
+    // 忽略 kjs_stmt 连接类型（KJS 模式使用）
+    const aChecks = a.getCheck() || []
+    const bChecks = b.getCheck() || []
+    if (aChecks.includes('kjs_stmt') || bChecks.includes('kjs_stmt')) return true
     const result = super.doTypeChecks(a, b)
     if (!result) {
       const aChecks = a.getCheck() || []
@@ -425,6 +516,13 @@ Blockly.registry.register('connectionChecker' as any, 'TaczChecker', TaczConnect
 
 // ─── Build Toolbox ───
 function buildToolbox(): Blockly.utils.toolbox.ToolboxDefinition {
+  if (currentMode.value === 'kjs') {
+    return buildKJSToolbox(activeKJSTab.value)
+  }
+  return buildTaczToolbox()
+}
+
+function buildTaczToolbox(): Blockly.utils.toolbox.ToolboxDefinition {
   return {
     kind: 'categoryToolbox',
     contents: [
@@ -644,6 +742,420 @@ function buildToolbox(): Blockly.utils.toolbox.ToolboxDefinition {
   }
 }
 
+// ─── KJS Toolbox ───
+function buildKJSToolbox(tab: KJSTab): Blockly.utils.toolbox.ToolboxDefinition {
+  // 通用积木分类（所有标签共享）
+  const jsLogicCategory = {
+    kind: 'category' as const, name: _b('📐 JS 逻辑控制', '📐 JS Logic'), colour: '#98C379',
+    contents: [
+      { kind: 'block', type: 'kjs_if' },
+      { kind: 'block', type: 'kjs_for_each' },
+      { kind: 'block', type: 'kjs_var_set' },
+      { kind: 'block', type: 'kjs_var_get' },
+      { kind: 'block', type: 'kjs_comment' },
+      { kind: 'block', type: 'kjs_console_log' },
+    ],
+  }
+  const valuesCategory = {
+    kind: 'category' as const, name: _b('📝 数值/文本', '📝 Values'), colour: '#4B70DD',
+    contents: [
+      { kind: 'block', type: 'math_number' },
+      { kind: 'block', type: 'text' },
+      { kind: 'block', type: 'logic_boolean' },
+      { kind: 'block', type: 'logic_compare' },
+      { kind: 'block', type: 'logic_operation' },
+      { kind: 'block', type: 'logic_negate' },
+      { kind: 'block', type: 'kjs_res_loc' },
+      { kind: 'block', type: 'kjs_json_literal' },
+    ],
+  }
+  const customCategory = {
+    kind: 'category' as const, name: _b('💻 自定义代码', '💻 Custom Code'), colour: '#9C27B0',
+    contents: [
+      { kind: 'block', type: 'kjs_custom_js' },
+    ],
+  }
+
+  // 服务端特有分类
+  const serverCategories = [
+    // 1. TaCZJS 事件（合并服务端事件 + 加载事件）
+    {
+      kind: 'category' as const, name: _b('📌 TaCZJS 服务端事件', '📌 TaCZJS Server Events'), colour: '#FF69B4',
+      contents: [
+        { kind: 'block', type: 'kjs_tacz_s_entity_shoot' },
+        { kind: 'block', type: 'kjs_tacz_s_entity_aim' },
+        { kind: 'block', type: 'kjs_tacz_s_entity_melee' },
+        { kind: 'block', type: 'kjs_tacz_s_entity_reload' },
+        { kind: 'block', type: 'kjs_tacz_s_gun_data_load' },
+        { kind: 'block', type: 'kjs_tacz_s_attachment_data_load' },
+        { kind: 'block', type: 'kjs_tacz_s_attachment_tags_load' },
+        { kind: 'block', type: 'kjs_tacz_s_gun_index_load' },
+        { kind: 'block', type: 'kjs_tacz_s_ammo_index_load' },
+        { kind: 'block', type: 'kjs_tacz_s_attachment_index_load' },
+      ],
+    },
+    // 2. KubeJS 服务端事件
+    {
+      kind: 'category' as const, name: _b('📌 KubeJS 服务端事件', '📌 KubeJS Server Events'), colour: '#61AFEF',
+      contents: [
+        { kind: 'block', type: 'kjs_server_loaded' },
+        { kind: 'block', type: 'kjs_server_unloaded' },
+        { kind: 'block', type: 'kjs_server_tick' },
+        { kind: 'block', type: 'kjs_server_recipes' },
+        { kind: 'block', type: 'kjs_server_after_recipes' },
+        { kind: 'block', type: 'kjs_server_tags' },
+        { kind: 'block', type: 'kjs_server_command' },
+        { kind: 'block', type: 'kjs_server_basic_command' },
+      ],
+    },
+    // 3～7. 各种事件
+    {
+      kind: 'category' as const, name: _b('📍 方块事件', '📍 Block Events'), colour: '#56A34A',
+      contents: [
+        { kind: 'block', type: 'kjs_block_right_clicked' },
+        { kind: 'block', type: 'kjs_block_left_clicked' },
+        { kind: 'block', type: 'kjs_block_placed' },
+        { kind: 'block', type: 'kjs_block_broken' },
+        { kind: 'block', type: 'kjs_block_drops' },
+        { kind: 'block', type: 'kjs_block_farmland_trampled' },
+        { kind: 'block', type: 'kjs_block_random_tick' },
+      ],
+    },
+    {
+      kind: 'category' as const, name: _b('👹 实体事件', '👹 Entity Events'), colour: '#E06C75',
+      contents: [
+        { kind: 'block', type: 'kjs_entity_death' },
+        { kind: 'block', type: 'kjs_entity_before_hurt' },
+        { kind: 'block', type: 'kjs_entity_after_hurt' },
+        { kind: 'block', type: 'kjs_entity_spawned' },
+        { kind: 'block', type: 'kjs_entity_drops' },
+        { kind: 'block', type: 'kjs_entity_check_spawn' },
+      ],
+    },
+    {
+      kind: 'category' as const, name: _b('👤 玩家事件', '👤 Player Events'), colour: '#4B70DD',
+      contents: [
+        { kind: 'block', type: 'kjs_player_logged_in' },
+        { kind: 'block', type: 'kjs_player_logged_out' },
+        { kind: 'block', type: 'kjs_player_respawned' },
+        { kind: 'block', type: 'kjs_player_chat' },
+        { kind: 'block', type: 'kjs_player_advancement' },
+        { kind: 'block', type: 'kjs_player_inventory_changed' },
+        { kind: 'block', type: 'kjs_player_tick' },
+      ],
+    },
+    {
+      kind: 'category' as const, name: _b('📦 物品事件', '📦 Item Events'), colour: '#F39C12',
+      contents: [
+        { kind: 'block', type: 'kjs_item_right_clicked' },
+        { kind: 'block', type: 'kjs_item_crafted' },
+        { kind: 'block', type: 'kjs_item_smelted' },
+        { kind: 'block', type: 'kjs_item_food_eaten' },
+        { kind: 'block', type: 'kjs_item_picked_up' },
+        { kind: 'block', type: 'kjs_item_dropped' },
+        { kind: 'block', type: 'kjs_item_modify_tooltips' },
+      ],
+    },
+    {
+      kind: 'category' as const, name: _b('🌍 世界事件', '🌍 Level Events'), colour: '#26A69A',
+      contents: [
+        { kind: 'block', type: 'kjs_level_loaded' },
+        { kind: 'block', type: 'kjs_level_tick' },
+        { kind: 'block', type: 'kjs_level_saved' },
+        { kind: 'block', type: 'kjs_level_before_explosion' },
+        { kind: 'block', type: 'kjs_level_after_explosion' },
+      ],
+    },
+    // 8. 事件操作 + 工具（合并为一个大分类）
+    {
+      kind: 'category' as const, name: _b('🔧 操作与工具', '🔧 Actions & Utils'), colour: '#DDA0DD',
+      contents: [
+        { kind: 'block', type: 'kjs_ev_cancel_shoot' },
+        { kind: 'block', type: 'kjs_ev_cancel_aim' },
+        { kind: 'block', type: 'kjs_ev_cancel_melee' },
+        { kind: 'block', type: 'kjs_ev_cancel_reload' },
+        { kind: 'block', type: 'kjs_ev_get_entity' },
+        { kind: 'block', type: 'kjs_ev_get_shooter' },
+        { kind: 'block', type: 'kjs_ev_get_gun_id' },
+        { kind: 'block', type: 'kjs_ev_get_gun_item' },
+        { kind: 'block', type: 'kjs_ev_get_id' },
+        { kind: 'block', type: 'kjs_ev_get_json' },
+        { kind: 'block', type: 'kjs_ev_get_std_json' },
+        { kind: 'block', type: 'kjs_ev_set_json' },
+        { kind: 'block', type: 'kjs_ev_get_gun_data' },
+        { kind: 'block', type: 'kjs_ev_get_attach_data' },
+        { kind: 'block', type: 'kjs_ev_get_pojo' },
+        { kind: 'block', type: 'kjs_ev_get_attach_tags' },
+        { kind: 'block', type: 'kjs_ev_get_table_recipe' },
+        { kind: 'block', type: 'kjs_ev_remove_gun' },
+        { kind: 'block', type: 'kjs_ev_remove_attachment' },
+        { kind: 'block', type: 'kjs_ev_remove_recipe' },
+        { kind: 'block', type: 'kjs_ev_remove_all_recipes' },
+        { kind: 'block', type: 'kjs_ev_put_recipe' },
+        { kind: 'block', type: 'kjs_ev_kill_entity' },
+        { kind: 'block', type: 'kjs_utils_open_refit' },
+        { kind: 'block', type: 'kjs_utils_hold_gun' },
+        { kind: 'block', type: 'kjs_utils_get_gun_idx' },
+        { kind: 'block', type: 'kjs_utils_get_ammo_idx' },
+        { kind: 'block', type: 'kjs_utils_get_attach_idx' },
+        { kind: 'block', type: 'kjs_util_get_all_players' },
+        { kind: 'block', type: 'kjs_util_send_msg' },
+        { kind: 'block', type: 'kjs_util_run_cmd' },
+        { kind: 'block', type: 'kjs_util_schedule' },
+        // 通用值积木
+        { kind: 'block', type: 'kjs_ev_get_player' },
+        { kind: 'block', type: 'kjs_ev_get_level' },
+        { kind: 'block', type: 'kjs_ev_get_block' },
+        { kind: 'block', type: 'kjs_ev_get_item' },
+        { kind: 'block', type: 'kjs_ev_get_server' },
+        { kind: 'block', type: 'kjs_ev_get_source' },
+        { kind: 'block', type: 'kjs_ev_get_hand' },
+        { kind: 'block', type: 'kjs_ev_get_facing' },
+        { kind: 'block', type: 'kjs_ev_get_message' },
+        { kind: 'block', type: 'kjs_ev_get_username' },
+        { kind: 'block', type: 'kjs_ev_get_random' },
+        { kind: 'block', type: 'kjs_ev_get_damage' },
+        { kind: 'block', type: 'kjs_ev_set_damage' },
+        { kind: 'block', type: 'kjs_ev_get_position' },
+        { kind: 'block', type: 'kjs_ev_get_size' },
+        { kind: 'block', type: 'kjs_ev_set_size' },
+        { kind: 'block', type: 'kjs_ev_get_affected_entities' },
+        { kind: 'block', type: 'kjs_ev_get_affected_blocks' },
+        { kind: 'block', type: 'kjs_ev_remove_knockback' },
+        { kind: 'block', type: 'kjs_ev_get_drops' },
+        { kind: 'block', type: 'kjs_ev_add_drop' },
+        { kind: 'block', type: 'kjs_ev_is_recently_hit' },
+        { kind: 'block', type: 'kjs_ev_get_chat_component' },
+        { kind: 'block', type: 'kjs_ev_set_chat_component' },
+        { kind: 'block', type: 'kjs_ev_cancel' },
+        { kind: 'block', type: 'kjs_ev_set_result' },
+        { kind: 'block', type: 'kjs_ev_log' },
+      ],
+    },
+    // 9. 配方/标签/阶段
+    {
+      kind: 'category' as const, name: _b('📝 配方操作', '📝 Recipe Ops'), colour: '#E06C75',
+      contents: [
+        { kind: 'block', type: 'kjs_recipe_remove' },
+        { kind: 'block', type: 'kjs_recipe_replace_input' },
+        { kind: 'block', type: 'kjs_recipe_replace_output' },
+      ],
+    },
+    {
+      kind: 'category' as const, name: _b('🏷️ 标签操作', '🏷️ Tag Ops'), colour: '#98C379',
+      contents: [
+        { kind: 'block', type: 'kjs_tag_add' },
+        { kind: 'block', type: 'kjs_tag_remove' },
+        { kind: 'block', type: 'kjs_tag_remove_all' },
+      ],
+    },
+    {
+      kind: 'category' as const, name: _b('🎯 玩家阶段', '🎯 Player Stages'), colour: '#4B70DD',
+      contents: [
+        { kind: 'block', type: 'kjs_stage_get' },
+        { kind: 'block', type: 'kjs_stage_add' },
+        { kind: 'block', type: 'kjs_stage_remove' },
+      ],
+    },
+    // 10. Create 配方
+    {
+      kind: 'category' as const, name: _b('🔧 Create 配方', '🔧 Create Recipes'), colour: '#E06C75',
+      contents: [
+        { kind: 'block', type: 'kjs_create_rc_crushing' },
+        { kind: 'block', type: 'kjs_create_rc_milling' },
+        { kind: 'block', type: 'kjs_create_rc_cutting' },
+        { kind: 'block', type: 'kjs_create_rc_mixing' },
+        { kind: 'block', type: 'kjs_create_rc_compacting' },
+        { kind: 'block', type: 'kjs_create_rc_pressing' },
+        { kind: 'block', type: 'kjs_create_rc_filling' },
+        { kind: 'block', type: 'kjs_create_rc_emptying' },
+        { kind: 'block', type: 'kjs_create_rc_splashing' },
+        { kind: 'block', type: 'kjs_create_rc_haunting' },
+        { kind: 'block', type: 'kjs_create_rc_deploying' },
+        { kind: 'block', type: 'kjs_create_rc_item_app' },
+      ],
+    },
+  ]
+
+  // 客户端特有分类
+  const clientCategories = [
+    {
+      kind: 'category' as const, name: _b('📌 TaCZJS 客户端事件', '📌 TaCZJS Client Events'), colour: '#4ECDC4',
+      contents: [
+        { kind: 'block', type: 'kjs_tacz_c_client_gun_index' },
+        { kind: 'block', type: 'kjs_tacz_c_client_aim' },
+        { kind: 'block', type: 'kjs_tacz_c_client_shoot' },
+        { kind: 'block', type: 'kjs_tacz_c_client_melee' },
+        { kind: 'block', type: 'kjs_tacz_c_client_reload' },
+      ],
+    },
+    {
+      kind: 'category' as const, name: _b('📌 KubeJS 客户端事件', '📌 KubeJS Client Events'), colour: '#87CEEB',
+      contents: [
+        { kind: 'block', type: 'kjs_client_logged_in' },
+        { kind: 'block', type: 'kjs_client_logged_out' },
+        { kind: 'block', type: 'kjs_client_tick' },
+        { kind: 'block', type: 'kjs_client_lang' },
+        { kind: 'block', type: 'kjs_client_left_debug' },
+        { kind: 'block', type: 'kjs_client_right_debug' },
+        { kind: 'block', type: 'kjs_client_highlight' },
+      ],
+    },
+    {
+      kind: 'category' as const, name: _b('🔧 操作+工具', '🔧 Actions & Utils'), colour: '#DDA0DD',
+      contents: [
+        { kind: 'block', type: 'kjs_ev_cancel_shoot' },
+        { kind: 'block', type: 'kjs_ev_cancel_aim' },
+        { kind: 'block', type: 'kjs_ev_cancel_melee' },
+        { kind: 'block', type: 'kjs_ev_cancel_reload' },
+        { kind: 'block', type: 'kjs_ev_set_vanilla' },
+        { kind: 'block', type: 'kjs_ev_is_vanilla' },
+        { kind: 'block', type: 'kjs_ev_get_entity' },
+        { kind: 'block', type: 'kjs_ev_get_gun_id' },
+        { kind: 'block', type: 'kjs_utils_open_refit' },
+        { kind: 'block', type: 'kjs_utils_hold_gun' },
+        { kind: 'block', type: 'kjs_utils_get_gun_idx' },
+        { kind: 'block', type: 'kjs_utils_get_ammo_idx' },
+        { kind: 'block', type: 'kjs_utils_get_attach_idx' },
+        { kind: 'block', type: 'kjs_utils_gun_display' },
+        { kind: 'block', type: 'kjs_utils_gun_operator' },
+        { kind: 'block', type: 'kjs_utils_block_hit' },
+        { kind: 'block', type: 'kjs_utils_entity_hit' },
+        { kind: 'block', type: 'kjs_utils_can_interact' },
+        { kind: 'block', type: 'kjs_ev_get_level' },
+        { kind: 'block', type: 'kjs_ev_log' },
+        { kind: 'block', type: 'kjs_ev_cancel' },
+        { kind: 'block', type: 'kjs_ev_get_source' },
+        { kind: 'block', type: 'kjs_ev_get_hand' },
+        { kind: 'block', type: 'kjs_ev_get_facing' },
+        { kind: 'block', type: 'kjs_ev_get_message' },
+        { kind: 'block', type: 'kjs_ev_get_username' },
+        { kind: 'block', type: 'kjs_ev_get_random' },
+        { kind: 'block', type: 'kjs_ev_get_position' },
+        { kind: 'block', type: 'kjs_ev_get_drops' },
+        { kind: 'block', type: 'kjs_ev_add_drop' },
+        { kind: 'block', type: 'kjs_ev_get_chat_component' },
+      ],
+    },
+    {
+      kind: 'category' as const, name: _b('🌐 语言文件', '🌐 Lang'), colour: '#87CEEB',
+      contents: [
+        { kind: 'block', type: 'kjs_lang_add' },
+        { kind: 'block', type: 'kjs_lang_rename_item' },
+        { kind: 'block', type: 'kjs_lang_rename_block' },
+      ],
+    },
+  ]
+
+  // 启动特有分类
+  const startupCategories = [
+    {
+      kind: 'category' as const, name: _b('📌 TaCZJS 启动事件', '📌 TaCZJS Startup Events'), colour: '#FFD93D',
+      contents: [
+        { kind: 'block', type: 'kjs_tacz_u_recipe_begin' },
+        { kind: 'block', type: 'kjs_tacz_u_recipe_load' },
+        { kind: 'block', type: 'kjs_tacz_u_recipe_end' },
+        { kind: 'block', type: 'kjs_tacz_u_startup_gun_data' },
+        { kind: 'block', type: 'kjs_tacz_u_startup_attach_data' },
+        { kind: 'block', type: 'kjs_tacz_u_startup_gun_index' },
+        { kind: 'block', type: 'kjs_tacz_u_startup_ammo_index' },
+        { kind: 'block', type: 'kjs_tacz_u_startup_attach_index' },
+      ],
+    },
+    {
+      kind: 'category' as const, name: _b('📌 KubeJS 启动事件', '📌 KubeJS Startup Events'), colour: '#FF8C00',
+      contents: [
+        { kind: 'block', type: 'kjs_startup_init' },
+        { kind: 'block', type: 'kjs_startup_post_init' },
+        { kind: 'block', type: 'kjs_startup_registry' },
+        { kind: 'block', type: 'kjs_startup_creative_tab' },
+        { kind: 'block', type: 'kjs_item_modification' },
+        { kind: 'block', type: 'kjs_block_modification' },
+      ],
+    },
+    {
+      kind: 'category' as const, name: _b('📌 Create 事件', '📌 Create Events'), colour: '#E06C75',
+      contents: [
+        { kind: 'block', type: 'kjs_create_boiler' },
+        { kind: 'block', type: 'kjs_create_fluid' },
+        { kind: 'block', type: 'kjs_create_spout' },
+        { kind: 'block', type: 'kjs_create_boiler_add' },
+        { kind: 'block', type: 'kjs_create_fluid_add' },
+        { kind: 'block', type: 'kjs_create_spout_add' },
+        { kind: 'block', type: 'kjs_create_heat_return' },
+        { kind: 'block', type: 'kjs_create_fluid_apply' },
+        { kind: 'block', type: 'kjs_cb_block' },
+        { kind: 'block', type: 'kjs_cb_level' },
+        { kind: 'block', type: 'kjs_cb_aabb' },
+        { kind: 'block', type: 'kjs_cb_fluid' },
+        { kind: 'block', type: 'kjs_cb_simulate' },
+        { kind: 'block', type: 'kjs_create_heat_no_heat' },
+      ],
+    },
+    {
+      kind: 'category' as const, name: _b('🔧 事件操作', '🔧 Event Actions'), colour: '#DDA0DD',
+      contents: [
+        { kind: 'block', type: 'kjs_ev_get_id' },
+        { kind: 'block', type: 'kjs_ev_get_json' },
+        { kind: 'block', type: 'kjs_ev_get_std_json' },
+        { kind: 'block', type: 'kjs_ev_set_json' },
+        { kind: 'block', type: 'kjs_ev_get_gun_data' },
+        { kind: 'block', type: 'kjs_ev_get_attach_data' },
+        { kind: 'block', type: 'kjs_ev_get_pojo' },
+        { kind: 'block', type: 'kjs_ev_get_table_recipe' },
+        { kind: 'block', type: 'kjs_ev_remove_gun' },
+        { kind: 'block', type: 'kjs_ev_remove_attachment' },
+        { kind: 'block', type: 'kjs_ev_remove_recipe' },
+        { kind: 'block', type: 'kjs_ev_remove_all_recipes' },
+        { kind: 'block', type: 'kjs_ev_put_recipe' },
+        { kind: 'block', type: 'kjs_ev_get_player' },
+        { kind: 'block', type: 'kjs_ev_get_level' },
+        { kind: 'block', type: 'kjs_ev_get_block' },
+        { kind: 'block', type: 'kjs_ev_get_item' },
+        { kind: 'block', type: 'kjs_ev_get_server' },
+        { kind: 'block', type: 'kjs_ev_cancel' },
+        { kind: 'block', type: 'kjs_ev_set_result' },
+        { kind: 'block', type: 'kjs_ev_log' },
+        { kind: 'block', type: 'kjs_ev_get_damage' },
+        { kind: 'block', type: 'kjs_ev_set_damage' },
+        { kind: 'block', type: 'kjs_ev_get_source' },
+        { kind: 'block', type: 'kjs_ev_get_hand' },
+        { kind: 'block', type: 'kjs_ev_get_facing' },
+        { kind: 'block', type: 'kjs_ev_get_message' },
+        { kind: 'block', type: 'kjs_ev_get_username' },
+        { kind: 'block', type: 'kjs_ev_get_random' },
+        { kind: 'block', type: 'kjs_ev_get_position' },
+        { kind: 'block', type: 'kjs_ev_get_drops' },
+        { kind: 'block', type: 'kjs_ev_add_drop' },
+        { kind: 'block', type: 'kjs_ev_get_chat_component' },
+      ],
+    },
+    {
+      kind: 'category' as const, name: _b('⌨️ 按键绑定', '⌨️ Key Bindings'), colour: '#7C3AED',
+      contents: [
+        { kind: 'block', type: 'kjs_keybind_pressed' },
+      ],
+    },
+  ]
+
+  let tabCategories: any[] = []
+  if (tab === 'server') tabCategories = serverCategories
+  else if (tab === 'client') tabCategories = clientCategories
+  else tabCategories = startupCategories
+
+  const extCategories = getExtensionToolboxCategories('kjs')
+  return {
+    kind: 'categoryToolbox',
+    contents: [
+      ...tabCategories,
+      jsLogicCategory,
+      valuesCategory,
+      customCategory,
+      ...extCategories,
+    ],
+  }
+}
+
 // ─── Lua Code Generator ───
 const luaGen: Record<string, (block: Blockly.Block, indent?: number) => string> = {}
 
@@ -652,7 +1164,7 @@ function genNext(block: Blockly.Block | null, indent = 1): string {
   if (!block) return ''
   // Skip disabled blocks
   if (!block.isEnabled()) return genNext(block.getNextBlock(), indent)
-  const extGens = getExtensionGenerators()
+  const extGens = getExtensionGenerators(currentMode.value)
   const allGens = { ...luaGen, ...extGens }
   const func = allGens[block.type]
   if (!func) return genNext(block.getNextBlock(), indent)
@@ -674,7 +1186,7 @@ function genNext(block: Blockly.Block | null, indent = 1): string {
 function genValue(block: Blockly.Block, inputName: string): string {
   const target = block.getInputTargetBlock(inputName)
   if (!target || !target.isEnabled()) return 'nil'
-  const extGens = getExtensionGenerators()
+  const extGens = getExtensionGenerators(currentMode.value)
   const allGens = { ...luaGen, ...extGens }
   const func = allGens[target.type]
   if (!func) return 'nil'
@@ -1023,13 +1535,451 @@ luaGen['logic_negate'] = (block) => {
   return `(not ${a})`
 }
 
+// ═══════════════════════════════════════════════════════════
+// ─── KJS Code Generator ───
+// ═══════════════════════════════════════════════════════════
+
+const kjsGen: Record<string, (block: Blockly.Block, indent?: number) => string> = {}
+
+// KJS Helper functions
+function genKJSNext(block: Blockly.Block | null, indent = 1): string {
+  if (!block) return ''
+  if (!block.isEnabled()) return genKJSNext(block.getNextBlock(), indent)
+  const fn = kjsGen[block.type]
+  if (!fn) return genKJSNext(block.getNextBlock(), indent)
+  const lines: string[] = []
+  let current: Blockly.Block | null = block
+  while (current) {
+    if (current.isEnabled()) {
+      const f = kjsGen[current.type]
+      if (f) lines.push(f(current, indent))
+    }
+    current = current.getNextBlock()
+  }
+  return lines.join('\n')
+}
+
+function genKJSValue(block: Blockly.Block, inputName: string): string {
+  const target = block.getInputTargetBlock(inputName)
+  if (!target || !target.isEnabled()) return "''"
+  const fn = kjsGen[target.type]
+  if (!fn) return "''"
+  return fn(target)
+}
+
+function genKJSStatements(block: Blockly.Block, inputName: string, indent = 1): string {
+  const target = block.getInputTargetBlock(inputName)
+  if (!target) return ''
+  return genKJSNext(target, indent)
+}
+
+// 通用帽子生成函数
+function hatGen(block: Blockly.Block, _indent: number, ns: string, method: string): string {
+  const body = genKJSNext(block.getNextBlock(), 1)
+  return `${ns}.${method}((event) => {\n${body || ''}})`
+}
+
+// ── TaCZJS Server Event Hats ──
+kjsGen['kjs_tacz_s_entity_shoot'] = (b, i=0) => hatGen(b, i, 'TaCZServerEvents', 'entityShoot')
+kjsGen['kjs_tacz_s_entity_aim'] = (b, i=0) => hatGen(b, i, 'TaCZServerEvents', 'entityAim')
+kjsGen['kjs_tacz_s_entity_melee'] = (b, i=0) => hatGen(b, i, 'TaCZServerEvents', 'entityMelee')
+kjsGen['kjs_tacz_s_entity_reload'] = (b, i=0) => hatGen(b, i, 'TaCZServerEvents', 'entityReload')
+kjsGen['kjs_tacz_s_gun_data_load'] = (b, i=0) => hatGen(b, i, 'TaCZServerEvents', 'gunDataLoad')
+kjsGen['kjs_tacz_s_attachment_data_load'] = (b, i=0) => hatGen(b, i, 'TaCZServerEvents', 'attachmentDataLoad')
+kjsGen['kjs_tacz_s_attachment_tags_load'] = (b, i=0) => hatGen(b, i, 'TaCZServerEvents', 'attachmentTagsLoad')
+kjsGen['kjs_tacz_s_gun_index_load'] = (b, i=0) => hatGen(b, i, 'TaCZServerEvents', 'gunIndexLoad')
+kjsGen['kjs_tacz_s_ammo_index_load'] = (b, i=0) => hatGen(b, i, 'TaCZServerEvents', 'ammoIndexLoad')
+kjsGen['kjs_tacz_s_attachment_index_load'] = (b, i=0) => hatGen(b, i, 'TaCZServerEvents', 'attachmentIndexLoad')
+
+// ── TaCZJS Client Event Hats ──
+kjsGen['kjs_tacz_c_client_gun_index'] = (b, i=0) => hatGen(b, i, 'TaCZClientEvents', 'gunIndexLoad')
+kjsGen['kjs_tacz_c_client_aim'] = (b, i=0) => hatGen(b, i, 'TaCZClientEvents', 'playerAim')
+kjsGen['kjs_tacz_c_client_shoot'] = (b, i=0) => hatGen(b, i, 'TaCZClientEvents', 'playerShoot')
+kjsGen['kjs_tacz_c_client_melee'] = (b, i=0) => hatGen(b, i, 'TaCZClientEvents', 'playerMelee')
+kjsGen['kjs_tacz_c_client_reload'] = (b, i=0) => hatGen(b, i, 'TaCZClientEvents', 'playerReload')
+
+// ── TaCZJS Startup Event Hats ──
+kjsGen['kjs_tacz_u_recipe_begin'] = (b, i=0) => hatGen(b, i, 'TaCZStartupEvents', 'recipeLoadBegin')
+kjsGen['kjs_tacz_u_recipe_load'] = (b, i=0) => hatGen(b, i, 'TaCZStartupEvents', 'recipeLoad')
+kjsGen['kjs_tacz_u_recipe_end'] = (b, i=0) => hatGen(b, i, 'TaCZStartupEvents', 'recipeLoadEnd')
+kjsGen['kjs_tacz_u_startup_gun_data'] = (b, i=0) => hatGen(b, i, 'TaCZStartupEvents', 'gunDataLoad')
+kjsGen['kjs_tacz_u_startup_attach_data'] = (b, i=0) => hatGen(b, i, 'TaCZStartupEvents', 'attachmentDataLoad')
+kjsGen['kjs_tacz_u_startup_gun_index'] = (b, i=0) => hatGen(b, i, 'TaCZStartupEvents', 'gunIndexLoad')
+kjsGen['kjs_tacz_u_startup_ammo_index'] = (b, i=0) => hatGen(b, i, 'TaCZStartupEvents', 'ammoIndexLoad')
+kjsGen['kjs_tacz_u_startup_attach_index'] = (b, i=0) => hatGen(b, i, 'TaCZStartupEvents', 'attachmentIndexLoad')
+
+// ── KubeJS Server Event Hats ──
+kjsGen['kjs_server_loaded'] = (b, i=0) => hatGen(b, i, 'ServerEvents', 'loaded')
+kjsGen['kjs_server_tick'] = (b, i=0) => hatGen(b, i, 'ServerEvents', 'tick')
+kjsGen['kjs_server_recipes'] = (b, i=0) => hatGen(b, i, 'ServerEvents', 'recipes')
+kjsGen['kjs_server_after_recipes'] = (b, i=0) => hatGen(b, i, 'ServerEvents', 'afterRecipes')
+kjsGen['kjs_server_tags'] = (b, i=0) => hatGen(b, i, 'ServerEvents', 'tags')
+kjsGen['kjs_server_command'] = (b, i=0) => {
+  const cmd = b.getFieldValue('CMD') || 'mycmd'
+  const body = genKJSNext(b.getNextBlock(), 1)
+  return `ServerEvents.command('${cmd}', (event) => {\n${body || ''}})`
+}
+
+// ── KubeJS Client Event Hats ──
+kjsGen['kjs_client_logged_in'] = (b, i=0) => hatGen(b, i, 'ClientEvents', 'loggedIn')
+kjsGen['kjs_client_logged_out'] = (b, i=0) => hatGen(b, i, 'ClientEvents', 'loggedOut')
+kjsGen['kjs_client_tick'] = (b, i=0) => hatGen(b, i, 'ClientEvents', 'tick')
+kjsGen['kjs_client_lang'] = (b, i=0) => {
+  const key = b.getFieldValue('KEY') || 'item.modid.xxx'
+  const body = genKJSNext(b.getNextBlock(), 1)
+  return `ClientEvents.lang('${key}', (event) => {\n${body || ''}})`
+}
+
+// ── KubeJS Startup Event Hats ──
+kjsGen['kjs_startup_init'] = (b, i=0) => hatGen(b, i, 'StartupEvents', 'init')
+kjsGen['kjs_startup_post_init'] = (b, i=0) => hatGen(b, i, 'StartupEvents', 'postInit')
+kjsGen['kjs_startup_registry'] = (b, i=0) => {
+  const type = b.getFieldValue('TYPE') || 'minecraft:item'
+  const body = genKJSNext(b.getNextBlock(), 1)
+  return `StartupEvents.registry('${type}', (event) => {\n${body || ''}})`
+}
+kjsGen['kjs_startup_creative_tab'] = (b, i=0) => {
+  const tabId = b.getFieldValue('TABID') || 'minecraft:combat'
+  const body = genKJSNext(b.getNextBlock(), 1)
+  return `StartupEvents.modifyCreativeTab('${tabId}', (event) => {\n${body || ''}})`
+}
+
+// ── Create Event Hats ──
+kjsGen['kjs_create_boiler'] = (b, i=0) => hatGen(b, i, 'CreateEvents', 'boilerHeatHandler')
+kjsGen['kjs_create_fluid'] = (b, i=0) => hatGen(b, i, 'CreateEvents', 'pipeFluidEffect')
+kjsGen['kjs_create_spout'] = (b, i=0) => hatGen(b, i, 'CreateEvents', 'spoutHandler')
+
+// ── KubeJS-Create ──
+kjsGen['kjs_create_boiler_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b,'BLOCK')}, (block) => {\n${genKJSStatements(b,'HANDLER',1)}\n${'  '.repeat(i)}})`
+kjsGen['kjs_create_fluid_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b,'FLUID')}, (level, aabb, fluid) => {\n${genKJSStatements(b,'HANDLER',1)}\n${'  '.repeat(i)}})`
+kjsGen['kjs_create_spout_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b,'PATH')}, ${genKJSValue(b,'BLOCK')}, (block, fluid, simulate) => {\n${genKJSStatements(b,'HANDLER',1)}\n${'  '.repeat(i)}})`
+kjsGen['kjs_create_heat_return'] = (b,i=0) => `${'  '.repeat(i)}return ${genKJSValue(b,'HEAT')}`
+kjsGen['kjs_create_fluid_apply'] = (b,i=0) => `${'  '.repeat(i)}// apply fluid effect: ${genKJSValue(b,'FLUID')}`
+
+// ── Create 回调变量 ──
+kjsGen['kjs_cb_block'] = () => `block`
+kjsGen['kjs_cb_level'] = () => `level`
+kjsGen['kjs_cb_aabb'] = () => `aabb`
+kjsGen['kjs_cb_fluid'] = () => `fluid`
+kjsGen['kjs_cb_simulate'] = () => `simulate`
+kjsGen['kjs_create_heat_no_heat'] = () => `0`
+
+// ── Create 配方注册（支持动态多输出）──
+function genCreateOutput(b: Blockly.Block): string {
+  const items: string[] = []
+  for (let i = 1; i <= 3; i++) {
+    const item = b.getFieldValue(`OUTPUT${i}_ITEM`)
+    if (item && item.trim()) {
+      const chance = parseFloat(b.getFieldValue(`OUTPUT${i}_CHANCE`) || '100') / 100
+      items.push(`{"item":"${item}","chance":${chance}}`)
+    }
+  }
+  return items.length > 0 ? `[${items.join(',')}]` : "''"
+}
+kjsGen['kjs_create_rc_crushing'] = (b,i=0) => `${'  '.repeat(i)}event.recipes.createCrushing(${genCreateOutput(b)}, '${b.getFieldValue('INPUT') || "''"}')`
+kjsGen['kjs_create_rc_milling'] = (b,i=0) => `${'  '.repeat(i)}event.recipes.createMilling(${genCreateOutput(b)}, '${b.getFieldValue('INPUT') || "''"}')`
+kjsGen['kjs_create_rc_cutting'] = (b,i=0) => `${'  '.repeat(i)}event.recipes.createCutting(${genCreateOutput(b)}, '${b.getFieldValue('INPUT') || "''"}')`
+kjsGen['kjs_create_rc_mixing'] = (b,i=0) => {
+  const inputs: string[] = []
+  for (let j = 1; j <= 5; j++) {
+    const item = b.getFieldValue(`INPUT${j}_ITEM`)
+    if (item && item.trim()) inputs.push(`'${item.trim()}'`)
+  }
+  return `${'  '.repeat(i)}event.recipes.createMixing(${genCreateOutput(b)}, [${inputs.join(',')}])`
+}
+kjsGen['kjs_create_rc_compacting'] = (b,i=0) => {
+  const inputs: string[] = []
+  for (let j = 1; j <= 5; j++) {
+    const item = b.getFieldValue(`INPUT${j}_ITEM`)
+    if (item && item.trim()) inputs.push(`'${item.trim()}'`)
+  }
+  return `${'  '.repeat(i)}event.recipes.createCompacting(${genCreateOutput(b)}, [${inputs.join(',')}])`
+}
+kjsGen['kjs_create_rc_pressing'] = (b,i=0) => `${'  '.repeat(i)}event.recipes.createPressing('${b.getFieldValue('OUTPUT') || "''"}', '${b.getFieldValue('INPUT') || "''"}')`
+kjsGen['kjs_create_rc_filling'] = (b,i=0) => `${'  '.repeat(i)}event.recipes.createFilling('${b.getFieldValue('OUTPUT') || "''"}', '${b.getFieldValue('INPUT') || "''"}', '${b.getFieldValue('FLUID') || "''"}')`
+kjsGen['kjs_create_rc_emptying'] = (b,i=0) => `${'  '.repeat(i)}event.recipes.createEmptying('${b.getFieldValue('OUTPUT') || "''"}', '${b.getFieldValue('FLUID') || "''"}', '${b.getFieldValue('INPUT') || "''"}')`
+kjsGen['kjs_create_rc_splashing'] = (b,i=0) => `${'  '.repeat(i)}event.recipes.createSplashing(${genCreateOutput(b)}, '${b.getFieldValue('INPUT') || "''"}')`
+kjsGen['kjs_create_rc_haunting'] = (b,i=0) => `${'  '.repeat(i)}event.recipes.createHaunting(${genCreateOutput(b)}, '${b.getFieldValue('INPUT') || "''"}')`
+kjsGen['kjs_create_rc_deploying'] = (b,i=0) => `${'  '.repeat(i)}event.recipes.createDeploying('${b.getFieldValue('OUTPUT') || "''"}', '${b.getFieldValue('INPUT') || "''"}', '${b.getFieldValue('HAND') || "''"}')`
+kjsGen['kjs_create_rc_item_app'] = (b,i=0) => `${'  '.repeat(i)}event.recipes.createItemApplication('${b.getFieldValue('OUTPUT') || "''"}', '${b.getFieldValue('INPUT') || "''"}', '${b.getFieldValue('HAND') || "''"}')`
+
+// ── Event Action Blocks ──
+kjsGen['kjs_ev_cancel_shoot'] = (_b,i=0) => `${'  '.repeat(i)}event.cancelShoot()`
+kjsGen['kjs_ev_cancel_aim'] = (_b,i=0) => `${'  '.repeat(i)}event.cancelAim()`
+kjsGen['kjs_ev_cancel_melee'] = (_b,i=0) => `${'  '.repeat(i)}event.cancelMelee()`
+kjsGen['kjs_ev_cancel_reload'] = (_b,i=0) => `${'  '.repeat(i)}event.cancelReload()`
+kjsGen['kjs_ev_set_vanilla'] = (_b,i=0) => `${'  '.repeat(i)}event.setVanillaInteract(true)`
+kjsGen['kjs_ev_is_vanilla'] = () => `event.isVanillaInteract()`
+kjsGen['kjs_ev_get_entity'] = () => `event.getEntity()`
+kjsGen['kjs_ev_get_shooter'] = () => `event.getShooter()`
+kjsGen['kjs_ev_get_gun_id'] = () => `event.getGunId().toString()`
+kjsGen['kjs_ev_get_gun_item'] = () => `event.getGunItem()`
+kjsGen['kjs_ev_get_id'] = () => `event.getId().toString()`
+kjsGen['kjs_ev_get_json'] = () => `event.getJson()`
+kjsGen['kjs_ev_get_std_json'] = () => `event.getStdJson()`
+kjsGen['kjs_ev_set_json'] = (b,i=0) => `${'  '.repeat(i)}event.setJson(${genKJSValue(b,'JSON')})`
+kjsGen['kjs_ev_get_gun_data'] = () => `event.getGunData()`
+kjsGen['kjs_ev_get_attach_data'] = () => `event.getAttachmentData()`
+kjsGen['kjs_ev_get_pojo'] = () => `event.getPOJO()`
+kjsGen['kjs_ev_get_attach_tags'] = () => `event.getAttachmentTags()`
+kjsGen['kjs_ev_get_table_recipe'] = () => `event.getTableRecipe()`
+kjsGen['kjs_ev_remove_gun'] = (_b,i=0) => `${'  '.repeat(i)}event.removeGunData()`
+kjsGen['kjs_ev_remove_attachment'] = (_b,i=0) => `${'  '.repeat(i)}event.removeAttachmentData()`
+kjsGen['kjs_ev_remove_recipe'] = (_b,i=0) => `${'  '.repeat(i)}event.removeRecipe()`
+kjsGen['kjs_ev_remove_all_recipes'] = (_b,i=0) => `${'  '.repeat(i)}event.removeAllRecipes()`
+kjsGen['kjs_ev_put_recipe'] = (b,i=0) => `${'  '.repeat(i)}event.putRecipe(${genKJSValue(b,'ID')}, ${genKJSValue(b,'JSON')})`
+kjsGen['kjs_ev_kill_entity'] = (_b,i=0) => `${'  '.repeat(i)}event.getEntity().kill()`
+
+// ── Utils Blocks ──
+kjsGen['kjs_utils_open_refit'] = (_b,i=0) => `${'  '.repeat(i)}TaCZJSUtils.openRefitScreen()`
+kjsGen['kjs_utils_hold_gun'] = () => `TaCZJSUtils.mainHandHoldGun(event.getEntity())`
+kjsGen['kjs_utils_get_gun_idx'] = (b) => `TaCZJSUtils.getGunIndex(${genKJSValue(b,'ID')})`
+kjsGen['kjs_utils_get_ammo_idx'] = (b) => `TaCZJSUtils.getAmmoIndex(${genKJSValue(b,'ID')})`
+kjsGen['kjs_utils_get_attach_idx'] = (b) => `TaCZJSUtils.getAttachmentIndex(${genKJSValue(b,'ID')})`
+
+// ── Block Events Hats ──
+kjsGen['kjs_block_right_clicked'] = (b, i=0) => hatGen(b, i, 'BlockEvents', 'rightClicked')
+kjsGen['kjs_block_left_clicked'] = (b, i=0) => hatGen(b, i, 'BlockEvents', 'leftClicked')
+kjsGen['kjs_block_placed'] = (b, i=0) => hatGen(b, i, 'BlockEvents', 'placed')
+kjsGen['kjs_block_broken'] = (b, i=0) => hatGen(b, i, 'BlockEvents', 'broken')
+kjsGen['kjs_block_drops'] = (b, i=0) => hatGen(b, i, 'BlockEvents', 'drops')
+kjsGen['kjs_block_farmland_trampled'] = (b, i=0) => hatGen(b, i, 'BlockEvents', 'farmlandTrampled')
+kjsGen['kjs_block_random_tick'] = (b, i=0) => hatGen(b, i, 'BlockEvents', 'randomTick')
+
+// ── Entity Events Hats ──
+kjsGen['kjs_entity_death'] = (b, i=0) => hatGen(b, i, 'EntityEvents', 'death')
+kjsGen['kjs_entity_before_hurt'] = (b, i=0) => hatGen(b, i, 'EntityEvents', 'beforeHurt')
+kjsGen['kjs_entity_after_hurt'] = (b, i=0) => hatGen(b, i, 'EntityEvents', 'afterHurt')
+kjsGen['kjs_entity_spawned'] = (b, i=0) => hatGen(b, i, 'EntityEvents', 'spawned')
+kjsGen['kjs_entity_drops'] = (b, i=0) => hatGen(b, i, 'EntityEvents', 'drops')
+kjsGen['kjs_entity_check_spawn'] = (b, i=0) => hatGen(b, i, 'EntityEvents', 'checkSpawn')
+
+// ── Player Events Hats ──
+kjsGen['kjs_player_logged_in'] = (b, i=0) => hatGen(b, i, 'PlayerEvents', 'loggedIn')
+kjsGen['kjs_player_logged_out'] = (b, i=0) => hatGen(b, i, 'PlayerEvents', 'loggedOut')
+kjsGen['kjs_player_respawned'] = (b, i=0) => hatGen(b, i, 'PlayerEvents', 'respawned')
+kjsGen['kjs_player_chat'] = (b, i=0) => hatGen(b, i, 'PlayerEvents', 'chat')
+kjsGen['kjs_player_advancement'] = (b, i=0) => hatGen(b, i, 'PlayerEvents', 'advancement')
+kjsGen['kjs_player_inventory_changed'] = (b, i=0) => hatGen(b, i, 'PlayerEvents', 'inventoryChanged')
+kjsGen['kjs_player_tick'] = (b, i=0) => hatGen(b, i, 'PlayerEvents', 'tick')
+
+// ── Item Events Hats ──
+kjsGen['kjs_item_right_clicked'] = (b, i=0) => hatGen(b, i, 'ItemEvents', 'rightClicked')
+kjsGen['kjs_item_crafted'] = (b, i=0) => hatGen(b, i, 'ItemEvents', 'crafted')
+kjsGen['kjs_item_smelted'] = (b, i=0) => hatGen(b, i, 'ItemEvents', 'smelted')
+kjsGen['kjs_item_food_eaten'] = (b, i=0) => hatGen(b, i, 'ItemEvents', 'foodEaten')
+kjsGen['kjs_item_picked_up'] = (b, i=0) => hatGen(b, i, 'ItemEvents', 'pickedUp')
+kjsGen['kjs_item_dropped'] = (b, i=0) => hatGen(b, i, 'ItemEvents', 'dropped')
+kjsGen['kjs_item_modify_tooltips'] = (b, i=0) => hatGen(b, i, 'ItemEvents', 'modifyTooltips')
+
+// ── Level Events Hats ──
+kjsGen['kjs_level_loaded'] = (b, i=0) => hatGen(b, i, 'LevelEvents', 'loaded')
+kjsGen['kjs_level_tick'] = (b, i=0) => hatGen(b, i, 'LevelEvents', 'tick')
+kjsGen['kjs_level_saved'] = (b, i=0) => hatGen(b, i, 'LevelEvents', 'saved')
+kjsGen['kjs_level_before_explosion'] = (b, i=0) => hatGen(b, i, 'LevelEvents', 'beforeExplosion')
+kjsGen['kjs_level_after_explosion'] = (b, i=0) => hatGen(b, i, 'LevelEvents', 'afterExplosion')
+
+// ── KeyBind Events Hats ──
+kjsGen['kjs_keybind_pressed'] = (b, i=0) => {
+  const key = b.getFieldValue('KEY') || 'my_key'
+  const body = genKJSNext(b.getNextBlock(), 1)
+  return `KeyBindEvents.pressed('${key}', (event) => {\n${body || ''}})`
+}
+
+// ── KubeJS 补充事件 Hats ──
+kjsGen['kjs_server_unloaded'] = (b, i=0) => hatGen(b, i, 'ServerEvents', 'unloaded')
+kjsGen['kjs_server_basic_command'] = (b, i=0) => {
+  const cmd = b.getFieldValue('CMD') || 'mycmd'
+  const body = genKJSNext(b.getNextBlock(), 1)
+  return `ServerEvents.basicCommand('${cmd}', (event) => {\n${body || ''}})`
+}
+kjsGen['kjs_client_left_debug'] = (b, i=0) => hatGen(b, i, 'ClientEvents', 'leftDebugInfo')
+kjsGen['kjs_client_right_debug'] = (b, i=0) => hatGen(b, i, 'ClientEvents', 'rightDebugInfo')
+kjsGen['kjs_client_highlight'] = (b, i=0) => hatGen(b, i, 'ClientEvents', 'highlight')
+kjsGen['kjs_item_modification'] = (b, i=0) => hatGen(b, i, 'ItemEvents', 'modification')
+kjsGen['kjs_block_modification'] = (b, i=0) => hatGen(b, i, 'BlockEvents', 'modification')
+
+// ── 客户端工具值积木 ──
+kjsGen['kjs_utils_gun_display'] = () => `TaCZJSUtils.getGunDisplay()`
+kjsGen['kjs_utils_gun_operator'] = () => `event.getGunOperator()`
+kjsGen['kjs_utils_block_hit'] = () => `event.getBlockHitResult()`
+kjsGen['kjs_utils_entity_hit'] = () => `event.getEntityHitResult()`
+kjsGen['kjs_utils_can_interact'] = () => `event.canInteractEntity()`
+
+// ── JS Logic Blocks ──
+kjsGen['kjs_if'] = (b, i=0) => {
+  const cond = genKJSValue(b, 'COND') || 'true'
+  const doBlk = genKJSStatements(b, 'DO', i+1)
+  const elseBlk = genKJSStatements(b, 'ELSE', i+1)
+  let code = `${'  '.repeat(i)}if (${cond}) {\n${doBlk}${doBlk?'\n':''}${'  '.repeat(i)}}`
+  if (elseBlk) code += ` else {\n${elseBlk}\n${'  '.repeat(i)}}`
+  return code
+}
+kjsGen['kjs_for_each'] = (b, i=0) => {
+  const v = b.getFieldValue('VAR') || 'item'
+  const arr = genKJSValue(b, 'ARR') || '[]'
+  const body = genKJSStatements(b, 'DO', i+1)
+  return `${'  '.repeat(i)}for (const ${v} of ${arr}) {\n${body||''}\n${'  '.repeat(i)}}`
+}
+kjsGen['kjs_var_set'] = (b, i=0) => {
+  const v = b.getFieldValue('VAR') || 'myVar'
+  const val = genKJSValue(b, 'VAL') || 'null'
+  return `${'  '.repeat(i)}let ${v} = ${val}`
+}
+kjsGen['kjs_var_get'] = (b) => b.getFieldValue('VAR') || 'myVar'
+kjsGen['kjs_comment'] = (b, i=0) => `${'  '.repeat(i)}// ${b.getFieldValue('TEXT') || ''}`
+kjsGen['kjs_console_log'] = (b, i=0) => `${'  '.repeat(i)}console.log(${genKJSValue(b,'VAL') || "''"})`
+
+// ── Custom JS Block ──
+kjsGen['kjs_custom_js'] = (b, i=0) => {
+  const code = b.getFieldValue('CODE') || '// code'
+  return code.split('\n').map((l: string) => `${'  '.repeat(i)}${l}`).join('\n')
+}
+
+// ── Value Output Blocks ──
+kjsGen['kjs_res_loc'] = (b) => `'${b.getFieldValue('LOC') || 'minecraft:dirt'}'`
+kjsGen['kjs_json_literal'] = (b) => b.getFieldValue('JSON') || '{}'
+
+// 复用内置积木的 KJS 生成器
+kjsGen['math_number'] = (b) => String(b.getFieldValue('NUM') || '0')
+kjsGen['text'] = (b) => `"${(b.getFieldValue('TEXT') || '').replace(/"/g, '\\"')}"`
+kjsGen['logic_boolean'] = (b) => (b.getFieldValue('BOOL') === 'TRUE' ? 'true' : 'false')
+kjsGen['logic_compare'] = (b) => {
+  const a = genKJSValue(b, 'A') || '0'; const g = genKJSValue(b, 'B') || '0'
+  const op = b.getFieldValue('OP') || 'EQ'
+  const m: Record<string,string> = { EQ:'==', NEQ:'!=', LT:'<', GT:'>', LTE:'<=', GTE:'>=' }
+  return `(${a} ${m[op]} ${g})`
+}
+kjsGen['logic_operation'] = (b) => {
+  const a = genKJSValue(b, 'A') || 'false'; const g = genKJSValue(b, 'B') || 'false'
+  return `(${a} ${b.getFieldValue('OP')==='AND'?'&&':'||'} ${g})`
+}
+kjsGen['logic_negate'] = (b) => `!(${genKJSValue(b,'BOOL') || 'false'})`
+
+// ── 补充通用事件值 ──
+kjsGen['kjs_ev_get_source'] = () => `event.getSource()`
+kjsGen['kjs_ev_get_hand'] = () => `event.getHand()`
+kjsGen['kjs_ev_get_facing'] = () => `event.getFacing()`
+kjsGen['kjs_ev_get_message'] = () => `event.getMessage()`
+kjsGen['kjs_ev_get_username'] = () => `event.getUsername()`
+kjsGen['kjs_ev_get_random'] = () => `event.getRandom()`
+
+// ── 配方操作 ──
+kjsGen['kjs_recipe_remove'] = (b,i=0) => `${'  '.repeat(i)}event.remove(${genKJSValue(b,'FILTER')})`
+kjsGen['kjs_recipe_replace_input'] = (b,i=0) => `${'  '.repeat(i)}event.replaceInput(${genKJSValue(b,'FILTER')}, ${genKJSValue(b,'FROM')}, ${genKJSValue(b,'TO')})`
+kjsGen['kjs_recipe_replace_output'] = (b,i=0) => `${'  '.repeat(i)}event.replaceOutput(${genKJSValue(b,'FILTER')}, ${genKJSValue(b,'FROM')}, ${genKJSValue(b,'TO')})`
+
+// ── 标签操作 ──
+kjsGen['kjs_tag_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b,'TAG')}, ${genKJSValue(b,'VALUES')})`
+kjsGen['kjs_tag_remove'] = (b,i=0) => `${'  '.repeat(i)}event.remove(${genKJSValue(b,'TAG')}, ${genKJSValue(b,'VALUES')})`
+kjsGen['kjs_tag_remove_all'] = (b,i=0) => `${'  '.repeat(i)}event.removeAll(${genKJSValue(b,'TAG')})`
+
+// ── 阶段操作 ──
+kjsGen['kjs_stage_get'] = () => `event.getStage()`
+kjsGen['kjs_stage_add'] = (b,i=0) => `${'  '.repeat(i)}event.getPlayerStages()?.add(${genKJSValue(b,'STAGE')})`
+kjsGen['kjs_stage_remove'] = (b,i=0) => `${'  '.repeat(i)}event.getPlayerStages()?.remove(${genKJSValue(b,'STAGE')})`
+
+// ── 语言文件 ──
+kjsGen['kjs_lang_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b,'KEY')}, ${genKJSValue(b,'VALUE')})`
+kjsGen['kjs_lang_rename_item'] = (b,i=0) => `${'  '.repeat(i)}event.renameItem(${genKJSValue(b,'ITEM')}, ${genKJSValue(b,'NAME')})`
+kjsGen['kjs_lang_rename_block'] = (b,i=0) => `${'  '.repeat(i)}event.renameBlock(${genKJSValue(b,'BLOCK')}, ${genKJSValue(b,'NAME')})`
+
+// ── 爆炸/世界事件值 ──
+kjsGen['kjs_ev_get_position'] = () => `event.getPosition()`
+kjsGen['kjs_ev_get_size'] = () => `event.getSize()`
+kjsGen['kjs_ev_set_size'] = (b,i=0) => `${'  '.repeat(i)}event.setSize(${genKJSValue(b,'SIZE')})`
+kjsGen['kjs_ev_get_affected_entities'] = () => `event.getAffectedEntities()`
+kjsGen['kjs_ev_get_affected_blocks'] = () => `event.getAffectedBlocks()`
+kjsGen['kjs_ev_remove_knockback'] = (_b,i=0) => `${'  '.repeat(i)}event.removeKnockback()`
+
+// ── 实体掉落 ──
+kjsGen['kjs_ev_get_drops'] = () => `event.getDrops()`
+kjsGen['kjs_ev_add_drop'] = (b,i=0) => `${'  '.repeat(i)}event.addDrop(${genKJSValue(b,'STACK')})`
+kjsGen['kjs_ev_is_recently_hit'] = () => `event.isRecentlyHit()`
+
+// ── 聊天消息 ──
+kjsGen['kjs_ev_get_chat_component'] = () => `event.getComponent()`
+kjsGen['kjs_ev_set_chat_component'] = (b,i=0) => `${'  '.repeat(i)}event.setComponent(${genKJSValue(b,'COMPONENT')})`
+
+// ── 新通用事件值积木 ──
+kjsGen['kjs_ev_get_player'] = () => `event.getEntity()?.getPlayer() ?? null`
+kjsGen['kjs_ev_get_level'] = () => `event.getLevel()`
+kjsGen['kjs_ev_get_block'] = () => `event.getBlock()`
+kjsGen['kjs_ev_get_item'] = () => `event.getItem()`
+kjsGen['kjs_ev_get_server'] = () => `event.getServer()`
+kjsGen['kjs_ev_cancel'] = (_b,i=0) => `${'  '.repeat(i)}event.cancel()`
+kjsGen['kjs_ev_set_result'] = (b,i=0) => `${'  '.repeat(i)}event.exit(${genKJSValue(b,'VALUE')})`
+kjsGen['kjs_ev_log'] = (b,i=0) => `${'  '.repeat(i)}console.log(${genKJSValue(b,'MSG')})`
+kjsGen['kjs_ev_get_damage'] = () => `event.getDamage()`
+kjsGen['kjs_ev_set_damage'] = (b,i=0) => `${'  '.repeat(i)}event.setDamage(${genKJSValue(b,'DAMAGE')})`
+
+// ── 服务端工具积木 ──
+kjsGen['kjs_util_get_all_players'] = () => `event.getServer()?.getPlayerList()?.getPlayers() ?? []`
+kjsGen['kjs_util_send_msg'] = (b,i=0) => {
+  const msg = genKJSValue(b,'MSG')
+  return `${'  '.repeat(i)}event.getEntity()?.tell(${msg || "'hello'"})`
+}
+kjsGen['kjs_util_run_cmd'] = (b,i=0) => `${'  '.repeat(i)}event.getServer()?.command(false, ${genKJSValue(b,'CMD') || "''"})`
+kjsGen['kjs_util_schedule'] = (b,i=0) => {
+  const ticks = genKJSValue(b,'TICKS') || '1'
+  const body = genKJSStatements(b, 'DO', 2)
+  return `${'  '.repeat(i)}event.getServer()?.schedule(${ticks}, (cb) => {\n${body || ''}\n${'  '.repeat(i)}})`
+}
+
+// ─── Generate KJS Code ───
+function generateKJSCode(): string {
+  if (!workspace) return ''
+  const topBlocks = workspace.getTopBlocks(true)
+  const lines: string[] = []
+  for (const block of topBlocks) {
+    if (!block.isEnabled()) continue
+    const fn = kjsGen[block.type]
+    if (fn) {
+      lines.push(fn(block))
+      lines.push('')
+    }
+  }
+  return lines.join('\n')
+}
+
+// ─── Multi-workspace Tab Switching ───
+function saveCurrentTabXML(tab: KJSTab) {
+  if (!workspace) return
+  const xml = Blockly.Xml.workspaceToDom(workspace)
+  kjsWorkspaceXMLs.value[tab] = Blockly.Xml.domToText(xml)
+}
+
+function loadTabXML(tab: KJSTab) {
+  if (!workspace) return
+  workspace.clear()
+  const saved = kjsWorkspaceXMLs.value[tab]
+  if (saved) {
+    try {
+      const dom = Blockly.utils.xml.textToDom(saved)
+      Blockly.Xml.domToWorkspace(dom, workspace)
+    } catch {}
+  }
+}
+
+// Watch tab switching
+watch(activeKJSTab, (newTab, oldTab) => {
+  if (currentMode.value !== 'kjs' || !workspace) return
+  if (oldTab) saveCurrentTabXML(oldTab)
+  loadTabXML(newTab)
+  rebuildToolbox()
+  handleWorkspaceChange({ type: '' } as any)
+})
+
 // ─── Generate Code from Workspace ───
 function generateCode(): string {
   if (!workspace) return ''
+  if (currentMode.value === 'kjs') {
+    return generateKJSCode()
+  }
   const topBlocks = workspace.getTopBlocks(true)
 
   // Merge extension generators
-  const extGens = getExtensionGenerators()
+  const extGens = getExtensionGenerators(currentMode.value)
   const allGens = { ...luaGen, ...extGens }
 
   // Collect event hat blocks and other blocks (skip disabled)
@@ -1198,6 +2148,11 @@ function handleWorkspaceChange(event: Blockly.Events.Abstract) {
     validateWorkspace()
   }
 
+  // Update empty workspace hint
+  if (workspace) {
+    showEmptyHint.value = workspace.getTopBlocks(true).length === 0
+  }
+
   const code = generateCode()
   emit('code-change', code)
 }
@@ -1208,6 +2163,18 @@ onMounted(() => {
 
   // 设置 Blockly 中文界面（右键菜单等）
   Blockly.setLocale(zhHans as unknown as { [key: string]: string })
+
+  // 恢复保存的模式状态（必须在 workspace 创建之前，因为 buildToolbox 依赖 currentMode）
+  // 恢复 KJS 标签数据（如果有），但默认启动始终为 TACZ 模式
+  const savedTabs = localStorage.getItem('bt_kjs_tabs')
+  if (savedTabs) {
+    try { kjsWorkspaceXMLs.value = JSON.parse(savedTabs) } catch {}
+  }
+  const savedActiveTab = localStorage.getItem('bt_kjs_active_tab') as KJSTab | null
+  if (savedActiveTab && ['server','client','startup'].includes(savedActiveTab)) {
+    activeKJSTab.value = savedActiveTab
+  }
+  localStorage.removeItem('bt_editor_mode')
 
   workspace = Blockly.inject(blocklyDiv.value, {
     toolbox: buildToolbox(),
@@ -1298,38 +2265,137 @@ onMounted(() => {
       }
       rebuildToolbox()
     },
+    // ── KJS Mode API ──
+    switchToKJS() {
+      if (!workspace) return
+      // 保存 TACZ 工作区和扩展状态
+      savedTaczXml = Blockly.Xml.domToText(Blockly.Xml.workspaceToDom(workspace))
+      savedTaczExts = getActiveExtensions().map(e => e.id)
+      workspace.clear()
+      rebuildToolbox()
+      handleWorkspaceChange({ type: '' } as any)
+    },
+    switchToTACZ() {
+      if (!workspace) return
+      workspace.clear()
+      kjsWorkspaceXMLs.value = { server: '', client: '', startup: '' }
+      // 恢复 TACZ 工作区
+      // 先清理 KJS 扩展状态，恢复 TACZ 扩展
+      const allExts = getRegisteredExtensions()
+      for (const ext of allExts) deactivateExtension(ext.id)
+      if (savedTaczExts.length > 0) {
+        for (const id of savedTaczExts) activateExtension(id)
+      }
+      rebuildToolbox()
+      // 恢复工作区 XML
+      if (savedTaczXml) {
+        try {
+          const dom = Blockly.utils.xml.textToDom(savedTaczXml)
+          Blockly.Xml.domToWorkspace(dom, workspace!)
+        } catch {}
+      }
+      savedTaczXml = ''
+      savedTaczExts = []
+      handleWorkspaceChange({ type: '' } as any)
+    },
+    clearKJS() {
+      if (!workspace) return
+      workspace.clear()
+      kjsWorkspaceXMLs.value = { server: '', client: '', startup: '' }
+      handleWorkspaceChange({ type: '' } as any)
+    },
+    getKJSCodes(): Record<string, string> {
+      if (!workspace) return { server: '', client: '', startup: '' }
+      saveCurrentTabXML(activeKJSTab.value)
+      const result: Record<string, string> = { server: '', client: '', startup: '' }
+      const currentTab = activeKJSTab.value
+      for (const tab of ['server', 'client', 'startup'] as KJSTab[]) {
+        const xml = kjsWorkspaceXMLs.value[tab]
+        if (!xml) continue
+        if (tab !== currentTab) {
+          workspace.clear()
+          try {
+            const dom = Blockly.utils.xml.textToDom(xml)
+            Blockly.Xml.domToWorkspace(dom, workspace)
+          } catch {}
+        }
+        result[tab] = generateKJSCode()
+      }
+      // 恢复当前标签
+      workspace.clear()
+      if (kjsWorkspaceXMLs.value[currentTab]) {
+        try {
+          const dom = Blockly.utils.xml.textToDom(kjsWorkspaceXMLs.value[currentTab])
+          Blockly.Xml.domToWorkspace(dom, workspace)
+        } catch {}
+      }
+      return result
+    },
+    getKJSWorkspaceXMLs() {
+      saveCurrentTabXML(activeKJSTab.value)
+      return { ...kjsWorkspaceXMLs.value }
+    },
+    loadKJSProject(tabs: Record<string, string>) {
+      for (const [tab, xml] of Object.entries(tabs)) {
+        if (tab in kjsWorkspaceXMLs.value) {
+          kjsWorkspaceXMLs.value[tab as KJSTab] = xml
+        }
+      }
+      loadTabXML(activeKJSTab.value)
+      rebuildToolbox()
+      handleWorkspaceChange({ type: '' } as any)
+    },
   }
 
   // Listen for workspace changes
   workspace.addChangeListener(handleWorkspaceChange)
 
-  // 语言切换：保存XML和扩展状态到localStorage，重载页面后恢复
+  // 语言切换：保存所有模式的工作区状态到localStorage，重载页面后恢复
   watch(() => i18n.value.lang, () => {
+    // 保存当前模式
+    localStorage.setItem('bt_editor_mode', currentMode.value)
+    // 保存 KJS 工作区（总是保存，以保护跨模式切换的数据）
+    saveCurrentTabXML(activeKJSTab.value)
+    localStorage.setItem('bt_kjs_tabs', JSON.stringify(kjsWorkspaceXMLs.value))
+    localStorage.setItem('bt_kjs_active_tab', activeKJSTab.value)
+    // 保存 TACZ 工作区
     const xml = Blockly.Xml.workspaceToDom(workspace!)
-    const xmlStr = Blockly.Xml.domToText(xml)
-    localStorage.setItem('tacz_workspace', xmlStr)
-    // 保存激活的扩展ID列表
+    localStorage.setItem('bt_tacz_workspace', Blockly.Xml.domToText(xml))
+    // 保存扩展状态
     const activeIds = getActiveExtensions().map(e => e.id)
-    localStorage.setItem('tacz_active_exts', JSON.stringify(activeIds))
-    // 保存自定义扩展的原始JSON数据
+    localStorage.setItem('bt_tacz_active_exts', JSON.stringify(activeIds))
     const customExts = getRegisteredExtensions().filter(e => !e.official)
     const customJsons = customExts.map(e => (e as any)._rawJson).filter(Boolean)
-    if (customJsons.length) localStorage.setItem('tacz_custom_exts', JSON.stringify(customJsons))
+    if (customJsons.length) localStorage.setItem('bt_tacz_custom_exts', JSON.stringify(customJsons))
     window.location.reload()
   })
 
-  // 页面加载后恢复之前保存的工作区
-  const saved = localStorage.getItem('tacz_workspace')
-  if (saved) {
-    try {
-      const xml = Blockly.utils.xml.textToDom(saved)
-      Blockly.Xml.domToWorkspace(xml, workspace!)
-    } catch {}
-    localStorage.removeItem('tacz_workspace')
+  // 恢复工作区内容（基于已保存的模式）
+  if (currentMode.value === 'kjs') {
+    const xml = kjsWorkspaceXMLs.value[activeKJSTab.value]
+    if (xml) {
+      try {
+        const dom = Blockly.utils.xml.textToDom(xml)
+        Blockly.Xml.domToWorkspace(dom, workspace!)
+      } catch {}
+    }
+  } else {
+    const saved = localStorage.getItem('bt_tacz_workspace')
+    if (saved) {
+      try {
+        const xml = Blockly.utils.xml.textToDom(saved)
+        Blockly.Xml.domToWorkspace(xml, workspace!)
+      } catch {}
+    }
   }
 
+  // 清理旧版 localStorage key
+  localStorage.removeItem('tacz_workspace')
+  localStorage.removeItem('tacz_active_exts')
+  localStorage.removeItem('tacz_custom_exts')
+
   // 恢复自定义扩展
-  const savedCustomExts = localStorage.getItem('tacz_custom_exts')
+  const savedCustomExts = localStorage.getItem('bt_tacz_custom_exts')
   if (savedCustomExts) {
     try {
       const extList = JSON.parse(savedCustomExts)
@@ -1360,17 +2426,17 @@ onMounted(() => {
         registerExtension(ext)
       }
     } catch {}
-    localStorage.removeItem('tacz_custom_exts')
+    localStorage.removeItem('bt_tacz_custom_exts')
   }
 
   // 恢复激活的扩展
-  const savedActiveExts = localStorage.getItem('tacz_active_exts')
+  const savedActiveExts = localStorage.getItem('bt_tacz_active_exts')
   if (savedActiveExts) {
     try {
       const ids: string[] = JSON.parse(savedActiveExts)
       for (const id of ids) activateExtension(id)
     } catch {}
-    localStorage.removeItem('tacz_active_exts')
+    localStorage.removeItem('bt_tacz_active_exts')
   }
 
   // 恢复扩展后刷新工具箱
@@ -1389,7 +2455,7 @@ onMounted(() => {
         const now = Date.now()
         if (clickEvent.blockId === lastClickBlockId && now - lastClickTime < 400) {
           const block = workspace!.getBlockById(clickEvent.blockId)
-          if (block && block.type === 'custom_lua') {
+          if (block && (block.type === 'custom_lua' || block.type === 'kjs_custom_js')) {
             openLuaEditor(block)
           }
           lastClickBlockId = ''
@@ -1423,6 +2489,22 @@ onBeforeUnmount(() => {
 .blockly-container {
   width: 100%;
   height: 100%;
+}
+.workspace-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #666;
+  font-size: 15px;
+  text-align: center;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+  background: rgba(30,30,46,0.8);
+  padding: 20px 32px;
+  border-radius: 12px;
+  border: 1px dashed #555;
 }
 .blockly-toast {
   position: absolute;
@@ -1487,4 +2569,16 @@ onBeforeUnmount(() => {
 .ext-tutorial-content ul { color: #bac2de; font-size: 12px; padding-left: 20px; margin: 4px 0; }
 .ext-tutorial-content li { margin: 3px 0; line-height: 1.5; }
 .ext-tutorial-content b { color: #f9e2af; }
+.ext-tutorial-mode-banner { background: rgba(139,92,246,0.2); border: 1px solid rgba(139,92,246,0.4); border-radius: 8px; padding: 8px 14px; margin-bottom: 12px; font-size: 13px; color: #C4B5FD; text-align: center; }
+/* KJS 工具箱宽度 */
+:deep(.blocklyToolboxDiv) {
+  min-width: 240px !important;
+}
+/* 飞窗宽度 */
+:deep(.blocklyFlyout) {
+  min-width: 320px !important;
+}
+:deep(.blocklyFlyoutDiv) {
+  min-width: 320px !important;
+}
 </style>

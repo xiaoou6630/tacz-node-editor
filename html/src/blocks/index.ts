@@ -1,1 +1,2 @@
 import './tacz'
+import './taczjs'

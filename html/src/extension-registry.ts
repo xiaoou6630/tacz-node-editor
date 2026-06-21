@@ -47,7 +47,8 @@ export interface Extension {
   icon: string
   official: boolean
   blocks: BlockDef[]
-  generators: Record<string, GenFn>
+  generators: Record<string, GenFn>       // TACZ Lua 生成器
+  kjsGenerators?: Record<string, GenFn>  // KJS JS 生成器（可选）
 }
 
 // ─── Registry ───
@@ -106,22 +107,28 @@ export function getActiveExtensions(): Extension[] {
     .filter((e): e is Extension => !!e)
 }
 
-export function getExtensionGenerators(): Record<string, GenFn> {
+export function getExtensionGenerators(mode?: string): Record<string, GenFn> {
   const gens: Record<string, GenFn> = {}
   for (const id of activeExtensions) {
     const ext = registeredExtensions.get(id)
     if (ext) {
-      Object.assign(gens, ext.generators)
+      if (mode === 'kjs' && ext.kjsGenerators) {
+        Object.assign(gens, ext.kjsGenerators)
+      } else {
+        Object.assign(gens, ext.generators)
+      }
     }
   }
   return gens
 }
 
-export function getExtensionToolboxCategories(): Blockly.utils.toolbox.ToolboxItemInfo[] {
+export function getExtensionToolboxCategories(mode?: string): Blockly.utils.toolbox.ToolboxItemInfo[] {
   const categories: Blockly.utils.toolbox.ToolboxItemInfo[] = []
   for (const id of activeExtensions) {
     const ext = registeredExtensions.get(id)
     if (!ext) continue
+    // KJS 模式下只显示有 KJS 生成器的扩展
+    if (mode === 'kjs' && !ext.kjsGenerators) continue
     categories.push({
       kind: 'category',
       name: `${ext.icon} ${_b(ext.name, ext.nameEn)}`,

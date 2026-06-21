@@ -1,7 +1,7 @@
 <template>
   <div class="code-editor">
     <div class="editor-header">
-      <span class="editor-title">{{ t('luaCode') }}</span>
+      <span class="editor-title">{{ mode === 'kjs' ? t('jsCode') : t('luaCode') }}</span>
       <div class="editor-actions">
         <button class="btn" @click="handleCopy">{{ t('copy') }}</button>
         <button class="btn" @click="handleDownload">{{ t('download') }}</button>
@@ -16,27 +16,37 @@ import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { t } from '../locales'
 import { EditorView, basicSetup } from 'codemirror'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { javascript } from '@codemirror/lang-javascript'
 
-const props = defineProps<{ code: string }>()
+const props = defineProps<{ code: string, mode?: string }>()
 
 const editorRef = ref<HTMLDivElement | null>(null)
 let view: EditorView | null = null
+let langExt: any = null
+
+function buildExtensions() {
+  const exts = [
+    basicSetup,
+    oneDark,
+    EditorView.editable.of(false),
+    EditorView.theme({
+      '&': { backgroundColor: '#1E1E2E', height: '100%' },
+      '.cm-scroller': { fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '13px' },
+      '.cm-gutters': { backgroundColor: '#1E1E2E', border: 'none' },
+      '.cm-activeLineGutter': { backgroundColor: '#2D2D3F' },
+    }),
+  ]
+  if (props.mode === 'kjs') {
+    exts.push(javascript())
+  }
+  return exts
+}
 
 onMounted(() => {
   if (editorRef.value) {
     view = new EditorView({
       doc: props.code || '',
-      extensions: [
-        basicSetup,
-        oneDark,
-        EditorView.editable.of(false),
-        EditorView.theme({
-          '&': { backgroundColor: '#1E1E2E', height: '100%' },
-          '.cm-scroller': { fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '13px' },
-          '.cm-gutters': { backgroundColor: '#1E1E2E', border: 'none' },
-          '.cm-activeLineGutter': { backgroundColor: '#2D2D3F' },
-        }),
-      ],
+      extensions: buildExtensions(),
       parent: editorRef.value,
     })
   }
@@ -52,6 +62,21 @@ watch(
           changes: { from: 0, to: current.length, insert: newCode },
         })
       }
+    }
+  }
+)
+
+watch(
+  () => props.mode,
+  () => {
+    // Rebuild editor with new language extension on mode switch
+    if (view && editorRef.value) {
+      view.destroy()
+      view = new EditorView({
+        doc: props.code || '',
+        extensions: buildExtensions(),
+        parent: editorRef.value,
+      })
     }
   }
 )
@@ -86,7 +111,9 @@ function handleDownload() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'state_machine.lua'
+  const ext = props.mode === 'kjs' ? '.js' : '.lua'
+  const name = props.mode === 'kjs' ? 'script' : 'state_machine'
+  a.download = name + ext
   a.click()
   URL.revokeObjectURL(url)
 }
