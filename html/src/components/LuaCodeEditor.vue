@@ -3,7 +3,7 @@
     <div class="lua-editor-overlay" v-if="visible" @keydown.tab.prevent>
       <div class="lua-editor-modal">
         <div class="lua-editor-header">
-          <span>📝 Lua 代码编辑器</span>
+          <span>📝 {{ mode === 'kjs' ? 'JS 代码编辑器' : 'Lua 代码编辑器' }}</span>
           <button class="lua-editor-close" @click="cancel">✕</button>
         </div>
         <div class="lua-editor-body" ref="editorContainer"></div>
@@ -26,6 +26,7 @@ import { EditorState } from '@codemirror/state'
 import { syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching, foldGutter, StreamLanguage } from '@codemirror/language'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { lua } from '@codemirror/legacy-modes/mode/lua'
+import { javascript } from '@codemirror/lang-javascript'
 import { autocompletion, CompletionContext, completionKeymap, closeBrackets, closeBracketsKeymap, acceptCompletion, type CompletionResult } from '@codemirror/autocomplete'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
@@ -35,6 +36,7 @@ import { allCompletions, type CompletionItem } from '../tacz-completions'
 const props = defineProps<{
   visible: boolean
   code: string
+  mode?: string
 }>()
 
 const emit = defineEmits<{
@@ -45,7 +47,7 @@ const emit = defineEmits<{
 const editorContainer = ref<HTMLDivElement>()
 let editorView: EditorView | null = null
 
-// VSCode-style TACZ completions
+// VSCode-style TACZ completions (Lua)
 function taczCompletions(context: CompletionContext): CompletionResult | null {
   const word = context.matchBefore(/[\w:.]+/)
   if (!word || word.from === word.to) return null
@@ -75,18 +77,83 @@ function taczCompletions(context: CompletionContext): CompletionResult | null {
   }
 }
 
+// KubeJS/JS completions
+const kjsCompletionsList = [
+  // ─── KubeJS 事件 API ───
+  { label: 'event.getEntity', type: 'function' as const, detail: '获取实体', insertText: 'event.getEntity()' },
+  { label: 'event.getPlayer', type: 'function' as const, detail: '获取玩家', insertText: 'event.getPlayer()' },
+  { label: 'event.getLevel', type: 'function' as const, detail: '获取世界', insertText: 'event.getLevel()' },
+  { label: 'event.getBlock', type: 'function' as const, detail: '获取方块', insertText: 'event.getBlock()' },
+  { label: 'event.getItem', type: 'function' as const, detail: '获取物品', insertText: 'event.getItem()' },
+  { label: 'event.getServer', type: 'function' as const, detail: '获取服务器', insertText: 'event.getServer()' },
+  { label: 'event.cancel', type: 'function' as const, detail: '取消事件', insertText: 'event.cancel()' },
+  { label: 'event.exit', type: 'function' as const, detail: '退出并返回值', insertText: 'event.exit(${1:value})' },
+  { label: 'event.getSource', type: 'function' as const, detail: '获取伤害源', insertText: 'event.getSource()' },
+  { label: 'event.getDamage', type: 'function' as const, detail: '获取伤害值', insertText: 'event.getDamage()' },
+  { label: 'event.setDamage', type: 'function' as const, detail: '设置伤害值', insertText: 'event.setDamage(${1:amount})' },
+  { label: 'event.getGunId', type: 'function' as const, detail: '获取枪械ID (TaCZJS)', insertText: 'event.getGunId()' },
+  { label: 'event.getGunItem', type: 'function' as const, detail: '获取枪械物品 (TaCZJS)', insertText: 'event.getGunItem()' },
+  { label: 'event.remove', type: 'function' as const, detail: '移除配方/标签', insertText: 'event.remove(${1:filter})' },
+  { label: 'event.add', type: 'function' as const, detail: '添加标签', insertText: 'event.add(${1:tag}, ${2:values})' },
+  { label: 'event.getPosition', type: 'function' as const, detail: '获取位置', insertText: 'event.getPosition()' },
+  { label: 'event.getSize', type: 'function' as const, detail: '获取爆炸大小', insertText: 'event.getSize()' },
+  { label: 'event.getDrops', type: 'function' as const, detail: '获取掉落物', insertText: 'event.getDrops()' },
+  { label: 'event.addDrop', type: 'function' as const, detail: '添加掉落物', insertText: 'event.addDrop(${1:stack})' },
+  { label: 'console.log', type: 'function' as const, detail: '输出日志', insertText: 'console.log(${1:msg})' },
+  // ─── KubeJS 事件名 ───
+  { label: 'BlockEvents.rightClicked', type: 'function' as const, detail: '方块右键事件', insertText: 'BlockEvents.rightClicked((event) => {\n  ${1:// code}\n})' },
+  { label: 'EntityEvents.death', type: 'function' as const, detail: '实体死亡事件', insertText: 'EntityEvents.death((event) => {\n  ${1:// code}\n})' },
+  { label: 'PlayerEvents.loggedIn', type: 'function' as const, detail: '玩家登录事件', insertText: 'PlayerEvents.loggedIn((event) => {\n  ${1:// code}\n})' },
+  { label: 'ServerEvents.recipes', type: 'function' as const, detail: '配方事件', insertText: 'ServerEvents.recipes((event) => {\n  ${1:// code}\n})' },
+  { label: 'TaCZServerEvents.entityShoot', type: 'function' as const, detail: '实体射击事件 (TaCZJS)', insertText: 'TaCZServerEvents.entityShoot((event) => {\n  ${1:// code}\n})' },
+  // ─── JS 关键字/语法 ───
+  { label: 'if', type: 'keyword' as const, detail: 'if 语句', insertText: 'if (${1:condition}) {\n  ${2:// body}\n}' },
+  { label: 'for', type: 'keyword' as const, detail: 'for 循环', insertText: 'for (let ${1:i}=0; ${1:i}<${2:n}; ${1:i}++) {\n  ${3:// body}\n}' },
+  { label: 'for...of', type: 'keyword' as const, detail: 'for-of 循环', insertText: 'for (const ${1:item} of ${2:array}) {\n  ${3:// body}\n}' },
+  { label: 'while', type: 'keyword' as const, detail: 'while 循环', insertText: 'while (${1:condition}) {\n  ${2:// body}\n}' },
+  { label: 'function', type: 'keyword' as const, detail: '函数定义', insertText: 'function ${1:name}(${2:args}) {\n  ${3:// body}\n}' },
+  { label: 'const', type: 'keyword' as const, detail: '常量声明', insertText: 'const ${1:name} = ${2:value}' },
+  { label: 'let', type: 'keyword' as const, detail: '变量声明', insertText: 'let ${1:name} = ${2:value}' },
+  { label: 'return', type: 'keyword' as const, detail: '返回值', insertText: 'return ${1:value}' },
+  { label: 'try', type: 'keyword' as const, detail: 'try-catch', insertText: 'try {\n  ${1:// code}\n} catch (${2:err}) {\n  ${3:// handle}\n}' },
+]
+
+function kjsCompletions(context: CompletionContext): CompletionResult | null {
+  const word = context.matchBefore(/[\w.]+/)
+  if (!word || word.from === word.to) return null
+  const text = word.text
+  const filtered = kjsCompletionsList.filter(item =>
+    item.label.toLowerCase().startsWith(text.toLowerCase())
+  )
+  if (filtered.length === 0) return null
+  return {
+    from: word.from,
+    options: filtered.map(item => ({
+      label: item.label,
+      type: item.type,
+      detail: item.detail,
+      apply: (item.insertText || item.label).replace(/\$\{\d+:([^}]*)\}/g, '$1'),
+    })),
+    filter: true,
+  }
+}
+
 function createEditor(code: string) {
   if (!editorContainer.value) return
   destroyEditor()
+
+  const isKJS = props.mode === 'kjs'
 
   const extensions = [
     // Line numbers & gutters
     lineNumbers(),
     highlightActiveLineGutter(),
     foldGutter(),
-    // Lua language
-    StreamLanguage.define(lua),
-    syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+    // Language
+    ...(isKJS
+      ? [javascript()]
+      : [StreamLanguage.define(lua), syntaxHighlighting(defaultHighlightStyle, { fallback: true })]
+    ),
     // Theme
     oneDark,
     // Active line highlight
@@ -94,9 +161,9 @@ function createEditor(code: string) {
     drawSelection(),
     rectangularSelection(),
     crosshairCursor(),
-    // Autocompletion - VSCode style
+    // Autocompletion
     autocompletion({
-      override: [taczCompletions],
+      override: [isKJS ? kjsCompletions : taczCompletions],
       activateOnTyping: true,
       icons: true,
       maxRenderedOptions: 50,
@@ -109,8 +176,8 @@ function createEditor(code: string) {
     closeBrackets(),
     highlightSelectionMatches(),
     // Placeholder
-    cmPlaceholder('-- 在此输入 Lua 代码...'),
-    // Keymaps - Tab accepts completion, then other keys
+    cmPlaceholder(isKJS ? '// 在此输入 JS 代码...' : '-- 在此输入 Lua 代码...'),
+    // Keymaps
     keymap.of([
       { key: 'Tab', run: acceptCompletion },
       ...completionKeymap,
@@ -118,7 +185,6 @@ function createEditor(code: string) {
       ...defaultKeymap,
       ...searchKeymap,
       ...historyKeymap,
-      // Ctrl+S to confirm
       { key: 'Mod-s', run: () => { confirm(); return true } },
     ]),
     // Tab size

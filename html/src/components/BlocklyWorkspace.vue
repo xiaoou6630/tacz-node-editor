@@ -11,6 +11,7 @@
     <LuaCodeEditor
       :visible="luaEditorVisible"
       :code="luaEditorCode"
+      :mode="currentMode"
       @update:code="onLuaCodeUpdate"
       @close="luaEditorVisible = false"
     />
@@ -754,6 +755,16 @@ function buildKJSToolbox(tab: KJSTab): Blockly.utils.toolbox.ToolboxDefinition {
       { kind: 'block', type: 'kjs_var_get' },
       { kind: 'block', type: 'kjs_comment' },
       { kind: 'block', type: 'kjs_console_log' },
+      { kind: 'block', type: 'kjs_while' },
+      { kind: 'block', type: 'kjs_do_while' },
+      { kind: 'block', type: 'kjs_for' },
+      { kind: 'block', type: 'kjs_switch' },
+      { kind: 'block', type: 'kjs_case' },
+      { kind: 'block', type: 'kjs_default' },
+      { kind: 'block', type: 'kjs_try' },
+      { kind: 'block', type: 'kjs_break' },
+      { kind: 'block', type: 'kjs_continue' },
+      { kind: 'block', type: 'kjs_throw' },
     ],
   }
   const valuesCategory = {
@@ -1830,6 +1841,73 @@ kjsGen['kjs_var_get'] = (b) => b.getFieldValue('VAR') || 'myVar'
 kjsGen['kjs_comment'] = (b, i=0) => `${'  '.repeat(i)}// ${b.getFieldValue('TEXT') || ''}`
 kjsGen['kjs_console_log'] = (b, i=0) => `${'  '.repeat(i)}console.log(${genKJSValue(b,'VAL') || "''"})`
 
+// ── JS 补充逻辑 ──
+kjsGen['kjs_while'] = (b,i=0) => {
+  const cond = genKJSValue(b,'COND') || 'true'
+  const body = genKJSStatements(b,'DO',i+1)
+  return `${'  '.repeat(i)}while (${cond}) {\n${body||''}\n${'  '.repeat(i)}}`
+}
+kjsGen['kjs_do_while'] = (b,i=0) => {
+  const body = genKJSStatements(b,'DO',i+1)
+  const cond = genKJSValue(b,'COND') || 'true'
+  return `${'  '.repeat(i)}do {\n${body||''}\n${'  '.repeat(i)}} while (${cond})`
+}
+kjsGen['kjs_for'] = (b,i=0) => {
+  const from = genKJSValue(b,'FROM') || '0'
+  const to = b.getFieldValue('TO_NUM') || '10'
+  const step = b.getFieldValue('STEP_NUM') || '1'
+  const body = genKJSStatements(b,'DO',i+1)
+  return `${'  '.repeat(i)}for (let i = ${from}; i < ${to}; i += ${step}) {\n${body||''}\n${'  '.repeat(i)}}`
+}
+kjsGen['kjs_switch'] = (b,i=0) => {
+  const val = genKJSValue(b,'VALUE') || "''"
+  const cases = genKJSStatements(b,'CASES',i+1)
+  return `${'  '.repeat(i)}switch (${val}) {\n${cases||''}\n${'  '.repeat(i)}}`
+}
+kjsGen['kjs_case'] = (b,i=0) => {
+  const val = genKJSValue(b,'VALUE') || "''"
+  const body = genKJSStatements(b,'DO',i+1)
+  return `${'  '.repeat(i)}case ${val}:\n${body||''}\n${'  '.repeat(i)}break`
+}
+kjsGen['kjs_default'] = (b,i=0) => {
+  const body = genKJSStatements(b,'DO',i+1)
+  return `${'  '.repeat(i)}default:\n${body||''}`
+}
+kjsGen['kjs_try'] = (b,i=0) => {
+  const tryBody = genKJSStatements(b,'TRY',i+1)
+  const catchBody = genKJSStatements(b,'CATCH',i+1)
+  return `${'  '.repeat(i)}try {\n${tryBody||''}\n${'  '.repeat(i)}} catch (e) {\n${catchBody||''}\n${'  '.repeat(i)}}`
+}
+kjsGen['kjs_break'] = (_b,i=0) => `${'  '.repeat(i)}break`
+kjsGen['kjs_continue'] = (_b,i=0) => `${'  '.repeat(i)}continue`
+kjsGen['kjs_throw'] = (b,i=0) => `${'  '.repeat(i)}throw ${genKJSValue(b,'ERR') || "new Error()"}`
+
+// ── Built-in Block Generators for JS ──
+kjsGen['math_number'] = (b) => b.getFieldValue('NUM') || '0'
+kjsGen['math_arithmetic'] = (b) => {
+  const a = genKJSValue(b, 'A') || '0'
+  const op = b.getFieldValue('OP') || 'ADD'
+  const bv = genKJSValue(b, 'B') || '0'
+  const OPS: Record<string, string> = { ADD: '+', MINUS: '-', MULTIPLY: '*', DIVIDE: '/', POWER: '**' }
+  return `(${a} ${OPS[op] || '+'} ${bv})`
+}
+kjsGen['text'] = (b) => `'${(b.getFieldValue('TEXT') || '').replace(/'/g, "\\'")}'`
+kjsGen['logic_boolean'] = (b) => b.getFieldValue('BOOL') === 'TRUE' ? 'true' : 'false'
+kjsGen['logic_compare'] = (b) => {
+  const a = genKJSValue(b, 'A') || '0'
+  const op = b.getFieldValue('OP') || 'EQ'
+  const bv = genKJSValue(b, 'B') || '0'
+  const OPS: Record<string, string> = { EQ: '===', NEQ: '!==', LT: '<', GT: '>', LTE: '<=', GTE: '>=' }
+  return `(${a} ${OPS[op] || '==='} ${bv})`
+}
+kjsGen['logic_operation'] = (b) => {
+  const a = genKJSValue(b, 'A') || 'true'
+  const op = b.getFieldValue('OP') || 'AND'
+  const bv = genKJSValue(b, 'B') || 'true'
+  return `(${a} ${op === 'AND' ? '&&' : '||'} ${bv})`
+}
+kjsGen['logic_negate'] = (b) => `!(${genKJSValue(b, 'BOOL') || 'true'})`
+
 // ── Custom JS Block ──
 kjsGen['kjs_custom_js'] = (b, i=0) => {
   const code = b.getFieldValue('CODE') || '// code'
@@ -2570,15 +2648,5 @@ onBeforeUnmount(() => {
 .ext-tutorial-content li { margin: 3px 0; line-height: 1.5; }
 .ext-tutorial-content b { color: #f9e2af; }
 .ext-tutorial-mode-banner { background: rgba(139,92,246,0.2); border: 1px solid rgba(139,92,246,0.4); border-radius: 8px; padding: 8px 14px; margin-bottom: 12px; font-size: 13px; color: #C4B5FD; text-align: center; }
-/* KJS 工具箱宽度 */
-:deep(.blocklyToolboxDiv) {
-  min-width: 240px !important;
-}
-/* 飞窗宽度 */
-:deep(.blocklyFlyout) {
-  min-width: 320px !important;
-}
-:deep(.blocklyFlyoutDiv) {
-  min-width: 320px !important;
-}
+
 </style>

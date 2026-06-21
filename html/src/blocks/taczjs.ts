@@ -478,10 +478,11 @@ Blockly.Blocks['kjs_if'] = {
 }
 Blockly.Blocks['kjs_for_each'] = {
   init() {
-    this.appendDummyInput().appendField('🔄 for (const ')
-    this.appendField(new Blockly.FieldTextInput('item'), 'VAR')
-    this.appendDummyInput(' of )')
-    this.appendValueInput('ARR').setCheck('Array')
+    this.appendDummyInput()
+      .appendField('🔄 for (const ')
+      .appendField(new Blockly.FieldTextInput('item'), 'VAR')
+      .appendField(' of ')
+    this.appendValueInput('ARR').setCheck('Array').appendField(')')
     this.appendStatementInput('DO').setCheck('kjs_stmt')
     this.setPreviousStatement(true, 'kjs_stmt')
     this.setNextStatement(true, 'kjs_stmt')
@@ -490,9 +491,10 @@ Blockly.Blocks['kjs_for_each'] = {
 }
 Blockly.Blocks['kjs_var_set'] = {
   init() {
-    this.appendDummyInput().appendField('📦 设 ')
-    this.appendField(new Blockly.FieldTextInput('myVar'), 'VAR')
-    this.appendDummyInput(' = ')
+    this.appendDummyInput()
+      .appendField('📦 设 ')
+      .appendField(new Blockly.FieldTextInput('myVar'), 'VAR')
+      .appendField(' = ')
     this.appendValueInput('VAL')
     this.setPreviousStatement(true, 'kjs_stmt')
     this.setNextStatement(true, 'kjs_stmt')
@@ -501,16 +503,18 @@ Blockly.Blocks['kjs_var_set'] = {
 }
 Blockly.Blocks['kjs_var_get'] = {
   init() {
-    this.appendDummyInput().appendField('📦 变量 ')
-    this.appendField(new Blockly.FieldTextInput('myVar'), 'VAR')
+    this.appendDummyInput()
+      .appendField('📦 变量 ')
+      .appendField(new Blockly.FieldTextInput('myVar'), 'VAR')
     this.setOutput(true, 'Any')
     this.setColour('#98C379');
   },
 }
 Blockly.Blocks['kjs_comment'] = {
   init() {
-    this.appendDummyInput().appendField('💬 // ')
-    this.appendField(new Blockly.FieldTextInput('注释'), 'TEXT')
+    this.appendDummyInput()
+      .appendField('💬 // ')
+      .appendField(new Blockly.FieldTextInput('注释'), 'TEXT')
     this.setPreviousStatement(true, 'kjs_stmt')
     this.setNextStatement(true, 'kjs_stmt')
     this.setColour('#98C379');
@@ -1660,6 +1664,118 @@ Blockly.Blocks['kjs_create_rc_item_app'] = {
     this.appendDummyInput().appendField('底座').appendField(new Blockly.FieldTextInput('minecraft:stone'), 'INPUT')
     this.appendDummyInput().appendField('手持').appendField(new Blockly.FieldTextInput('minecraft:iron_ingot'), 'HAND')
     this.appendDummyInput().appendField('输出').appendField(new Blockly.FieldTextInput('minecraft:iron_block'), 'OUTPUT')
+    this.setPreviousStatement(true, 'kjs_stmt')
+    this.setNextStatement(true, 'kjs_stmt')
+    this.setColour('#E06C75');
+  },
+}
+
+// ═══════════════════════════════════════════════════════════
+//  34. JS 逻辑控制积木（补充）
+// ═══════════════════════════════════════════════════════════
+
+// while 循环
+Blockly.Blocks['kjs_while'] = {
+  init() {
+    this.appendValueInput('COND').setCheck('Boolean').appendField('当')
+    this.appendStatementInput('DO').setCheck('kjs_stmt').appendField('时 执行')
+    this.setPreviousStatement(true, 'kjs_stmt')
+    this.setNextStatement(true, 'kjs_stmt')
+    this.setColour('#98C379');
+  },
+}
+
+// do...while 循环
+Blockly.Blocks['kjs_do_while'] = {
+  init() {
+    this.appendStatementInput('DO').setCheck('kjs_stmt').appendField('执行')
+    this.appendValueInput('COND').setCheck('Boolean').appendField('当').appendField('时')
+    this.setPreviousStatement(true, 'kjs_stmt')
+    this.setNextStatement(true, 'kjs_stmt')
+    this.setColour('#98C379');
+  },
+}
+
+// for 循环（索引）
+Blockly.Blocks['kjs_for'] = {
+  init() {
+    this.appendValueInput('FROM').setCheck('Number').appendField('从')
+    this.appendDummyInput().appendField('到').appendField(new Blockly.FieldTextInput('10'), 'TO_NUM')
+    this.appendDummyInput().appendField('步进').appendField(new Blockly.FieldTextInput('1'), 'STEP_NUM')
+    this.appendStatementInput('DO').setCheck('kjs_stmt').appendField('执行')
+    this.setPreviousStatement(true, 'kjs_stmt')
+    this.setNextStatement(true, 'kjs_stmt')
+    this.setColour('#98C379');
+  },
+}
+
+// switch/case
+Blockly.Blocks['kjs_switch'] = {
+  init() {
+    this.appendValueInput('VALUE').appendField('判断')
+    this.appendStatementInput('CASES').setCheck('kjs_stmt').appendField('分支')
+    this.setPreviousStatement(true, 'kjs_stmt')
+    this.setNextStatement(true, 'kjs_stmt')
+    this.setColour('#E06C75');
+  },
+}
+
+// case 分支
+Blockly.Blocks['kjs_case'] = {
+  init() {
+    this.appendValueInput('VALUE').appendField('当值')
+    this.appendStatementInput('DO').setCheck('kjs_stmt').appendField('执行')
+    this.setPreviousStatement(true, 'kjs_stmt')
+    this.setNextStatement(true, 'kjs_stmt')
+    this.setColour('#E06C75');
+  },
+}
+
+// default 分支
+Blockly.Blocks['kjs_default'] = {
+  init() {
+    this.appendStatementInput('DO').setCheck('kjs_stmt').appendField('默认 执行')
+    this.setPreviousStatement(true, 'kjs_stmt')
+    this.setNextStatement(true, 'kjs_stmt')
+    this.setColour('#E06C75');
+  },
+}
+
+// try/catch
+Blockly.Blocks['kjs_try'] = {
+  init() {
+    this.appendStatementInput('TRY').setCheck('kjs_stmt').appendField('尝试')
+    this.appendStatementInput('CATCH').setCheck('kjs_stmt').appendField('捕获(变量 e)')
+    this.setPreviousStatement(true, 'kjs_stmt')
+    this.setNextStatement(true, 'kjs_stmt')
+    this.setColour('#E06C75');
+  },
+}
+
+// break
+Blockly.Blocks['kjs_break'] = {
+  init() {
+    this.appendDummyInput().appendField('跳出循环')
+    this.setPreviousStatement(true, 'kjs_stmt')
+    this.setNextStatement(true, 'kjs_stmt')
+    this.setColour('#98C379');
+  },
+}
+
+// continue
+Blockly.Blocks['kjs_continue'] = {
+  init() {
+    this.appendDummyInput().appendField('继续下一次')
+    this.setPreviousStatement(true, 'kjs_stmt')
+    this.setNextStatement(true, 'kjs_stmt')
+    this.setColour('#98C379');
+  },
+}
+
+// throw
+Blockly.Blocks['kjs_throw'] = {
+  init() {
+    this.appendValueInput('ERR').appendField('抛出')
     this.setPreviousStatement(true, 'kjs_stmt')
     this.setNextStatement(true, 'kjs_stmt')
     this.setColour('#E06C75');
