@@ -603,7 +603,7 @@ function buildTaczToolbox(): Blockly.utils.toolbox.ToolboxDefinition {
           { kind: 'block', type: 'check_paused' },
           { kind: 'block', type: 'has_animation' },
           { kind: 'block', type: 'check_bullet_in_barrel' },
-          { kind: 'block', type: 'check_aiming' },
+          { kind: 'block', type: 'check_aim_progress' },
           { kind: 'block', type: 'check_crawl' },
           { kind: 'block', type: 'check_crouching' },
           { kind: 'block', type: 'check_jumping' },
@@ -767,6 +767,15 @@ function buildKJSToolbox(tab: KJSTab): Blockly.utils.toolbox.ToolboxDefinition {
       { kind: 'block', type: 'kjs_throw' },
     ],
   }
+  const mathCategory = {
+    kind: 'category' as const, name: _b('🔢 数学运算', '🔢 Math'), colour: '#DDA0DD',
+    contents: [
+      { kind: 'block', type: 'math_add' },
+      { kind: 'block', type: 'math_sub' },
+      { kind: 'block', type: 'math_mul' },
+      { kind: 'block', type: 'math_div' },
+    ],
+  }
   const valuesCategory = {
     kind: 'category' as const, name: _b('📝 数值/文本', '📝 Values'), colour: '#4B70DD',
     contents: [
@@ -889,6 +898,8 @@ function buildKJSToolbox(tab: KJSTab): Blockly.utils.toolbox.ToolboxDefinition {
         { kind: 'block', type: 'kjs_ev_get_shooter' },
         { kind: 'block', type: 'kjs_ev_get_gun_id' },
         { kind: 'block', type: 'kjs_ev_get_gun_item' },
+        { kind: 'block', type: 'kjs_ev_get_heat_progress' },
+        { kind: 'block', type: 'kjs_ev_get_heat_amount' },
         { kind: 'block', type: 'kjs_ev_get_id' },
         { kind: 'block', type: 'kjs_ev_get_json' },
         { kind: 'block', type: 'kjs_ev_get_std_json' },
@@ -1160,6 +1171,7 @@ function buildKJSToolbox(tab: KJSTab): Blockly.utils.toolbox.ToolboxDefinition {
     contents: [
       ...tabCategories,
       jsLogicCategory,
+      mathCategory,
       valuesCategory,
       customCategory,
       ...extCategories,
@@ -1194,13 +1206,13 @@ function genNext(block: Blockly.Block | null, indent = 1): string {
 }
 
 // Helper: get value from a connected input block
-function genValue(block: Blockly.Block, inputName: string): string {
+function genValue(block: Blockly.Block, inputName: string, fallback = ''): string {
   const target = block.getInputTargetBlock(inputName)
-  if (!target || !target.isEnabled()) return 'nil'
+  if (!target || !target.isEnabled()) return fallback
   const extGens = getExtensionGenerators(currentMode.value)
   const allGens = { ...luaGen, ...extGens }
   const func = allGens[target.type]
-  if (!func) return 'nil'
+  if (!func) return fallback
   return func(target)
 }
 
@@ -1263,7 +1275,7 @@ luaGen['exit'] = (block, indent = 0) => {
 luaGen['transition'] = (block, indent = 0) => {
   const from = block.getFieldValue('FROM') || 'idle'
   const to = block.getFieldValue('TO') || 'idle'
-  const cond = genValue(block, 'COND') || 'true'
+  const cond = genValue(block, 'COND', 'true')
   return `${'  '.repeat(indent)}-- transition: ${from} → ${to} if ${cond}`
 }
 
@@ -1273,7 +1285,7 @@ luaGen['run_animation'] = (block, indent = 0) => {
   const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
   const blend = block.getFieldValue('BLEND') || 'false'
   const mode = block.getFieldValue('MODE') || 'PLAY_ONCE_STOP'
-  const blendTime = genValue(block, 'BLEND_TIME') || '0.2'
+  const blendTime = genValue(block, 'BLEND_TIME', '0.2')
   return `${'  '.repeat(indent)}context:runAnimation("${anim}", ${track}, ${blend}, ${mode}, ${blendTime})`
 }
 
@@ -1286,20 +1298,20 @@ luaGen['loop_animation'] = (block, indent = 0) => {
   const anim = block.getFieldValue('ANIM') || 'idle'
   const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
   const blend = block.getFieldValue('BLEND') || 'false'
-  const blendTime = genValue(block, 'BLEND_TIME') || '0'
+  const blendTime = genValue(block, 'BLEND_TIME', '0')
   return `${'  '.repeat(indent)}context:runAnimation("${anim}", ${track}, ${blend}, LOOP, ${blendTime})`
 }
 
 luaGen['set_progress'] = (block, indent = 0) => {
   const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
-  const progress = genValue(block, 'PROGRESS') || '0'
+  const progress = genValue(block, 'PROGRESS', '0')
   const normalization = block.getFieldValue('NORMALIZATION') || 'false'
   return `${'  '.repeat(indent)}context:setAnimationProgress(${track}, ${progress}, ${normalization})`
 }
 
 luaGen['adjust_progress'] = (block, indent = 0) => {
   const track = block.getFieldValue('TRACK') || 'MAIN_TRACK'
-  const delta = genValue(block, 'DELTA') || '0'
+  const delta = genValue(block, 'DELTA', '0')
   const normalization = block.getFieldValue('NORMALIZATION') || 'false'
   return `${'  '.repeat(indent)}context:adjustAnimationProgress(${track}, ${delta}, ${normalization})`
 }
@@ -1309,7 +1321,7 @@ luaGen['play_blended'] = (block, indent = 0) => {
   const line = block.getFieldValue('LINE') || 'STATIC_TRACK_LINE'
   const blend = block.getFieldValue('BLEND') || 'false'
   const mode = block.getFieldValue('MODE') || 'PLAY_ONCE_STOP'
-  const blendTime = genValue(block, 'BLEND_TIME') || '0'
+  const blendTime = genValue(block, 'BLEND_TIME', '0')
   return `${'  '.repeat(indent)}context:runAnimation("${anim}", context:findIdleTrack(${line}, true), ${blend}, ${mode}, ${blendTime})`
 }
 luaGen['pause_animation'] = (block, indent = 0) => {
@@ -1325,7 +1337,7 @@ luaGen['resume_animation'] = (block, indent = 0) => {
 luaGen['check_ammo'] = () => 'context:hasAmmoToConsume()'
 luaGen['check_ammo_count'] = (block) => {
   const op = block.getFieldValue('OP') || '>='
-  const value = genValue(block, 'VALUE') || '0'
+  const value = genValue(block, 'VALUE', '0')
   return `context:getAmmoCount() ${op} ${value}`
 }
 luaGen['check_heat'] = () => 'context:isOverHeat()'
@@ -1336,7 +1348,7 @@ luaGen['check_stopped'] = (block) => {
 }
 luaGen['check_cooldown'] = (block) => {
   const op = block.getFieldValue('OP') || '>='
-  const value = genValue(block, 'VALUE') || '0'
+  const value = genValue(block, 'VALUE', '0')
   return `context:getShootCoolDown() ${op} ${value}`
 }
 luaGen['check_track_idle'] = (block) => {
@@ -1370,6 +1382,10 @@ luaGen['has_animation'] = (block) => {
 // New condition blocks
 luaGen['check_bullet_in_barrel'] = () => 'context:hasBulletInBarrel()'
 luaGen['check_aiming'] = () => 'context:isAiming()'
+luaGen['check_aim_progress'] = (block) => {
+  const progress = genValue(block, 'PROGRESS', '0')
+  return `context:getAimingProgress() >= ${progress}`
+}
 luaGen['check_crawl'] = () => 'context:isCrawl()'
 luaGen['check_crouching'] = () => 'context:isCrouching()'
 luaGen['check_jumping'] = () => 'context:isInputJumping()'
@@ -1382,7 +1398,7 @@ luaGen['check_fire_mode'] = (block) => {
 
 // Action Blocks (correct TACZ API)
 luaGen['pop_shell'] = (block, indent = 0) => {
-  const index = genValue(block, 'INDEX') || '1'
+  const index = genValue(block, 'INDEX', '1')
   return `${'  '.repeat(indent)}context:popShellFrom(${index})`
 }
 luaGen['trigger_event'] = (block, indent = 0) => {
@@ -1401,7 +1417,7 @@ luaGen['anchor_walk'] = (_block, indent = 0) => {
   return `${'  '.repeat(indent)}context:anchorWalkDist()`
 }
 luaGen['play_put_away'] = (block, indent = 0) => {
-  const time = genValue(block, 'TIME') || '0'
+  const time = genValue(block, 'TIME', '0')
   return `${'  '.repeat(indent)}-- put_away_time: ${time}`
 }
 luaGen['play_reload'] = (block, indent = 0) => {
@@ -1414,7 +1430,7 @@ luaGen['play_inspect'] = (_block, indent = 0) => {
 luaGen['cycle_melee'] = (block, indent = 0) => {
   const prefix = block.getFieldValue('PREFIX') || 'melee_bayonet_'
   const counter = block.getFieldValue('COUNTER') || 'bayonet_counter'
-  const max = genValue(block, 'MAX') || '3'
+  const max = genValue(block, 'MAX', '3')
   return `${'  '.repeat(indent)}-- cycle melee: ${prefix} counter=${counter} max=${max}`
 }
 luaGen['track_hold'] = (block, indent = 0) => {
@@ -1422,7 +1438,7 @@ luaGen['track_hold'] = (block, indent = 0) => {
   return `${'  '.repeat(indent)}context:holdAnimation(${track})`
 }
 luaGen['adjust_shoot_interval'] = (block, indent = 0) => {
-  const delta = genValue(block, 'DELTA') || '0'
+  const delta = genValue(block, 'DELTA', '0')
   return `${'  '.repeat(indent)}context:adjustClientShootInterval(${delta})`
 }
 
@@ -1457,27 +1473,27 @@ luaGen['find_idle_track'] = (block, indent = 0) => {
 }
 luaGen['add_track_line'] = () => 'context:addTrackLine()'
 luaGen['assign_new_track'] = (block) => {
-  const index = genValue(block, 'INDEX') || '0'
+  const index = genValue(block, 'INDEX', '0')
   return `context:assignNewTrack(${index})`
 }
 luaGen['ensure_track_line_size'] = (block, indent = 0) => {
-  const size = genValue(block, 'SIZE') || '0'
+  const size = genValue(block, 'SIZE', '0')
   return `${'  '.repeat(indent)}context:ensureTrackLineSize(${size})`
 }
 luaGen['ensure_tracks_amount'] = (block, indent = 0) => {
-  const index = genValue(block, 'INDEX') || '0'
-  const amount = genValue(block, 'AMOUNT') || '0'
+  const index = genValue(block, 'INDEX', '0')
+  const amount = genValue(block, 'AMOUNT', '0')
   return `${'  '.repeat(indent)}context:ensureTracksAmount(${index}, ${amount})`
 }
 luaGen['get_singleton_track'] = (block) => {
-  const index = genValue(block, 'INDEX') || '0'
+  const index = genValue(block, 'INDEX', '0')
   return `context:getAsSingletonTrack(${index})`
 }
 luaGen['get_track_line_size'] = () => 'context:getTrackLineSize()'
 
 // Logic Blocks
 luaGen['if_node'] = (block, indent = 0) => {
-  const cond = genValue(block, 'COND') || 'true'
+  const cond = genValue(block, 'COND', 'true')
   const doBlock = genStatements(block, 'DO', indent + 1)
   const elseBlock = genStatements(block, 'ELSE', indent + 1)
   let code = `${'  '.repeat(indent)}if ${cond} then\n${doBlock}${doBlock ? '\n' : ''}${'  '.repeat(indent)}end`
@@ -1498,23 +1514,23 @@ luaGen['play_once_hold'] = () => 'PLAY_ONCE_HOLD'
 
 // Math Blocks
 luaGen['math_add'] = (block) => {
-  const a = genValue(block, 'A') || '0'
-  const b = genValue(block, 'B') || '0'
+  const a = genValue(block, 'A', '0')
+  const b = genValue(block, 'B', '0')
   return `(${a} + ${b})`
 }
 luaGen['math_sub'] = (block) => {
-  const a = genValue(block, 'A') || '0'
-  const b = genValue(block, 'B') || '0'
+  const a = genValue(block, 'A', '0')
+  const b = genValue(block, 'B', '0')
   return `(${a} - ${b})`
 }
 luaGen['math_mul'] = (block) => {
-  const a = genValue(block, 'A') || '0'
-  const b = genValue(block, 'B') || '0'
+  const a = genValue(block, 'A', '0')
+  const b = genValue(block, 'B', '0')
   return `(${a} * ${b})`
 }
 luaGen['math_div'] = (block) => {
-  const a = genValue(block, 'A') || '0'
-  const b = genValue(block, 'B') || '0'
+  const a = genValue(block, 'A', '0')
+  const b = genValue(block, 'B', '0')
   return `(${a} / ${b})`
 }
 
@@ -1529,20 +1545,20 @@ luaGen['logic_boolean'] = (block) => {
   return block.getFieldValue('BOOL') === 'TRUE' ? 'true' : 'false'
 }
 luaGen['logic_compare'] = (block) => {
-  const a = genValue(block, 'A') || 'nil'
-  const b = genValue(block, 'B') || 'nil'
+  const a = genValue(block, 'A', 'nil')
+  const b = genValue(block, 'B', 'nil')
   const op = block.getFieldValue('OP') || 'EQ'
   const opMap: Record<string, string> = { EQ: '==', NEQ: '~=', LT: '<', GT: '>', LTE: '<=', GTE: '>=' }
   return `(${a} ${opMap[op] || '=='} ${b})`
 }
 luaGen['logic_operation'] = (block) => {
-  const a = genValue(block, 'A') || 'false'
-  const b = genValue(block, 'B') || 'false'
+  const a = genValue(block, 'A', 'false')
+  const b = genValue(block, 'B', 'false')
   const op = block.getFieldValue('OP') || 'AND'
   return `(${a} ${op === 'AND' ? 'and' : 'or'} ${b})`
 }
 luaGen['logic_negate'] = (block) => {
-  const a = genValue(block, 'BOOL') || 'false'
+  const a = genValue(block, 'BOOL', 'false')
   return `(not ${a})`
 }
 
@@ -1570,11 +1586,11 @@ function genKJSNext(block: Blockly.Block | null, indent = 1): string {
   return lines.join('\n')
 }
 
-function genKJSValue(block: Blockly.Block, inputName: string): string {
+function genKJSValue(block: Blockly.Block, inputName: string, fallback = ''): string {
   const target = block.getInputTargetBlock(inputName)
-  if (!target || !target.isEnabled()) return "''"
+  if (!target || !target.isEnabled()) return fallback
   const fn = kjsGen[target.type]
-  if (!fn) return "''"
+  if (!fn) return fallback
   return fn(target)
 }
 
@@ -1661,11 +1677,11 @@ kjsGen['kjs_create_fluid'] = (b, i=0) => hatGen(b, i, 'CreateEvents', 'pipeFluid
 kjsGen['kjs_create_spout'] = (b, i=0) => hatGen(b, i, 'CreateEvents', 'spoutHandler')
 
 // ── KubeJS-Create ──
-kjsGen['kjs_create_boiler_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b,'BLOCK')}, (block) => {\n${genKJSStatements(b,'HANDLER',1)}\n${'  '.repeat(i)}})`
-kjsGen['kjs_create_fluid_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b,'FLUID')}, (level, aabb, fluid) => {\n${genKJSStatements(b,'HANDLER',1)}\n${'  '.repeat(i)}})`
-kjsGen['kjs_create_spout_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b,'PATH')}, ${genKJSValue(b,'BLOCK')}, (block, fluid, simulate) => {\n${genKJSStatements(b,'HANDLER',1)}\n${'  '.repeat(i)}})`
-kjsGen['kjs_create_heat_return'] = (b,i=0) => `${'  '.repeat(i)}return ${genKJSValue(b,'HEAT')}`
-kjsGen['kjs_create_fluid_apply'] = (b,i=0) => `${'  '.repeat(i)}// apply fluid effect: ${genKJSValue(b,'FLUID')}`
+kjsGen['kjs_create_boiler_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b, 'BLOCK', "''")}, (block) => {\n${genKJSStatements(b,'HANDLER',1)}\n${'  '.repeat(i)}})`
+kjsGen['kjs_create_fluid_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b, 'FLUID', "''")}, (level, aabb, fluid) => {\n${genKJSStatements(b,'HANDLER',1)}\n${'  '.repeat(i)}})`
+kjsGen['kjs_create_spout_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b, 'PATH', "''")}, ${genKJSValue(b, 'BLOCK', "''")}, (block, fluid, simulate) => {\n${genKJSStatements(b,'HANDLER',1)}\n${'  '.repeat(i)}})`
+kjsGen['kjs_create_heat_return'] = (b,i=0) => `${'  '.repeat(i)}return ${genKJSValue(b, 'HEAT', "''")}`
+kjsGen['kjs_create_fluid_apply'] = (b,i=0) => `${'  '.repeat(i)}// apply fluid effect: ${genKJSValue(b, 'FLUID', "''")}`
 
 // ── Create 回调变量 ──
 kjsGen['kjs_cb_block'] = () => `block`
@@ -1725,10 +1741,12 @@ kjsGen['kjs_ev_get_entity'] = () => `event.getEntity()`
 kjsGen['kjs_ev_get_shooter'] = () => `event.getShooter()`
 kjsGen['kjs_ev_get_gun_id'] = () => `event.getGunId().toString()`
 kjsGen['kjs_ev_get_gun_item'] = () => `event.getGunItem()`
+kjsGen['kjs_ev_get_heat_progress'] = () => `(function(){ var _gi = event.getGunItem(); if (!_gi) return 0; var _IGun = Java.loadClass('com.tacz.guns.api.item.IGun'); var _gun = _IGun.getIGunOrNull(_gi); if (!_gun) return 0; var _max = _gun.getMaxHeatAmount(_gi); return _max > 0 ? _gun.getHeatAmount(_gi) / _max : 0 })()`
+kjsGen['kjs_ev_get_heat_amount'] = () => `(function(){ var _gi = event.getGunItem(); if (!_gi) return 0; var _IGun = Java.loadClass('com.tacz.guns.api.item.IGun'); var _gun = _IGun.getIGunOrNull(_gi); return _gun ? _gun.getHeatAmount(_gi) : 0 })()`
 kjsGen['kjs_ev_get_id'] = () => `event.getId().toString()`
 kjsGen['kjs_ev_get_json'] = () => `event.getJson()`
 kjsGen['kjs_ev_get_std_json'] = () => `event.getStdJson()`
-kjsGen['kjs_ev_set_json'] = (b,i=0) => `${'  '.repeat(i)}event.setJson(${genKJSValue(b,'JSON')})`
+kjsGen['kjs_ev_set_json'] = (b,i=0) => `${'  '.repeat(i)}event.setJson(${genKJSValue(b, 'JSON', "''")})`
 kjsGen['kjs_ev_get_gun_data'] = () => `event.getGunData()`
 kjsGen['kjs_ev_get_attach_data'] = () => `event.getAttachmentData()`
 kjsGen['kjs_ev_get_pojo'] = () => `event.getPOJO()`
@@ -1738,15 +1756,15 @@ kjsGen['kjs_ev_remove_gun'] = (_b,i=0) => `${'  '.repeat(i)}event.removeGunData(
 kjsGen['kjs_ev_remove_attachment'] = (_b,i=0) => `${'  '.repeat(i)}event.removeAttachmentData()`
 kjsGen['kjs_ev_remove_recipe'] = (_b,i=0) => `${'  '.repeat(i)}event.removeRecipe()`
 kjsGen['kjs_ev_remove_all_recipes'] = (_b,i=0) => `${'  '.repeat(i)}event.removeAllRecipes()`
-kjsGen['kjs_ev_put_recipe'] = (b,i=0) => `${'  '.repeat(i)}event.putRecipe(${genKJSValue(b,'ID')}, ${genKJSValue(b,'JSON')})`
+kjsGen['kjs_ev_put_recipe'] = (b,i=0) => `${'  '.repeat(i)}event.putRecipe(${genKJSValue(b, 'ID', "''")}, ${genKJSValue(b, 'JSON', "''")})`
 kjsGen['kjs_ev_kill_entity'] = (_b,i=0) => `${'  '.repeat(i)}event.getEntity().kill()`
 
 // ── Utils Blocks ──
 kjsGen['kjs_utils_open_refit'] = (_b,i=0) => `${'  '.repeat(i)}TaCZJSUtils.openRefitScreen()`
 kjsGen['kjs_utils_hold_gun'] = () => `TaCZJSUtils.mainHandHoldGun(event.getEntity())`
-kjsGen['kjs_utils_get_gun_idx'] = (b) => `TaCZJSUtils.getGunIndex(${genKJSValue(b,'ID')})`
-kjsGen['kjs_utils_get_ammo_idx'] = (b) => `TaCZJSUtils.getAmmoIndex(${genKJSValue(b,'ID')})`
-kjsGen['kjs_utils_get_attach_idx'] = (b) => `TaCZJSUtils.getAttachmentIndex(${genKJSValue(b,'ID')})`
+kjsGen['kjs_utils_get_gun_idx'] = (b) => `TaCZJSUtils.getGunIndex(${genKJSValue(b, 'ID', "''")})`
+kjsGen['kjs_utils_get_ammo_idx'] = (b) => `TaCZJSUtils.getAmmoIndex(${genKJSValue(b, 'ID', "''")})`
+kjsGen['kjs_utils_get_attach_idx'] = (b) => `TaCZJSUtils.getAttachmentIndex(${genKJSValue(b, 'ID', "''")})`
 
 // ── Block Events Hats ──
 kjsGen['kjs_block_right_clicked'] = (b, i=0) => hatGen(b, i, 'BlockEvents', 'rightClicked')
@@ -1819,7 +1837,7 @@ kjsGen['kjs_utils_can_interact'] = () => `event.canInteractEntity()`
 
 // ── JS Logic Blocks ──
 kjsGen['kjs_if'] = (b, i=0) => {
-  const cond = genKJSValue(b, 'COND') || 'true'
+  const cond = genKJSValue(b, 'COND', 'true')
   const doBlk = genKJSStatements(b, 'DO', i+1)
   const elseBlk = genKJSStatements(b, 'ELSE', i+1)
   let code = `${'  '.repeat(i)}if (${cond}) {\n${doBlk}${doBlk?'\n':''}${'  '.repeat(i)}}`
@@ -1828,44 +1846,44 @@ kjsGen['kjs_if'] = (b, i=0) => {
 }
 kjsGen['kjs_for_each'] = (b, i=0) => {
   const v = b.getFieldValue('VAR') || 'item'
-  const arr = genKJSValue(b, 'ARR') || '[]'
+  const arr = genKJSValue(b, 'ARR', '[]')
   const body = genKJSStatements(b, 'DO', i+1)
   return `${'  '.repeat(i)}for (const ${v} of ${arr}) {\n${body||''}\n${'  '.repeat(i)}}`
 }
 kjsGen['kjs_var_set'] = (b, i=0) => {
   const v = b.getFieldValue('VAR') || 'myVar'
-  const val = genKJSValue(b, 'VAL') || 'null'
+  const val = genKJSValue(b, 'VAL', 'null')
   return `${'  '.repeat(i)}let ${v} = ${val}`
 }
 kjsGen['kjs_var_get'] = (b) => b.getFieldValue('VAR') || 'myVar'
 kjsGen['kjs_comment'] = (b, i=0) => `${'  '.repeat(i)}// ${b.getFieldValue('TEXT') || ''}`
-kjsGen['kjs_console_log'] = (b, i=0) => `${'  '.repeat(i)}console.log(${genKJSValue(b,'VAL') || "''"})`
+kjsGen['kjs_console_log'] = (b, i=0) => `${'  '.repeat(i)}console.log(${genKJSValue(b, 'VAL', "''")})`
 
 // ── JS 补充逻辑 ──
 kjsGen['kjs_while'] = (b,i=0) => {
-  const cond = genKJSValue(b,'COND') || 'true'
+  const cond = genKJSValue(b, 'COND', 'true')
   const body = genKJSStatements(b,'DO',i+1)
   return `${'  '.repeat(i)}while (${cond}) {\n${body||''}\n${'  '.repeat(i)}}`
 }
 kjsGen['kjs_do_while'] = (b,i=0) => {
   const body = genKJSStatements(b,'DO',i+1)
-  const cond = genKJSValue(b,'COND') || 'true'
+  const cond = genKJSValue(b, 'COND', 'true')
   return `${'  '.repeat(i)}do {\n${body||''}\n${'  '.repeat(i)}} while (${cond})`
 }
 kjsGen['kjs_for'] = (b,i=0) => {
-  const from = genKJSValue(b,'FROM') || '0'
+  const from = genKJSValue(b, 'FROM', '0')
   const to = b.getFieldValue('TO_NUM') || '10'
   const step = b.getFieldValue('STEP_NUM') || '1'
   const body = genKJSStatements(b,'DO',i+1)
   return `${'  '.repeat(i)}for (let i = ${from}; i < ${to}; i += ${step}) {\n${body||''}\n${'  '.repeat(i)}}`
 }
 kjsGen['kjs_switch'] = (b,i=0) => {
-  const val = genKJSValue(b,'VALUE') || "''"
+  const val = genKJSValue(b, 'VALUE', "''")
   const cases = genKJSStatements(b,'CASES',i+1)
   return `${'  '.repeat(i)}switch (${val}) {\n${cases||''}\n${'  '.repeat(i)}}`
 }
 kjsGen['kjs_case'] = (b,i=0) => {
-  const val = genKJSValue(b,'VALUE') || "''"
+  const val = genKJSValue(b, 'VALUE', "''")
   const body = genKJSStatements(b,'DO',i+1)
   return `${'  '.repeat(i)}case ${val}:\n${body||''}\n${'  '.repeat(i)}break`
 }
@@ -1880,33 +1898,33 @@ kjsGen['kjs_try'] = (b,i=0) => {
 }
 kjsGen['kjs_break'] = (_b,i=0) => `${'  '.repeat(i)}break`
 kjsGen['kjs_continue'] = (_b,i=0) => `${'  '.repeat(i)}continue`
-kjsGen['kjs_throw'] = (b,i=0) => `${'  '.repeat(i)}throw ${genKJSValue(b,'ERR') || "new Error()"}`
+kjsGen['kjs_throw'] = (b,i=0) => `${'  '.repeat(i)}throw ${genKJSValue(b, 'ERR', 'new Error()')}`
 
 // ── Built-in Block Generators for JS ──
 kjsGen['math_number'] = (b) => b.getFieldValue('NUM') || '0'
 kjsGen['math_arithmetic'] = (b) => {
-  const a = genKJSValue(b, 'A') || '0'
+  const a = genKJSValue(b, 'A', '0')
   const op = b.getFieldValue('OP') || 'ADD'
-  const bv = genKJSValue(b, 'B') || '0'
+  const bv = genKJSValue(b, 'B', '0')
   const OPS: Record<string, string> = { ADD: '+', MINUS: '-', MULTIPLY: '*', DIVIDE: '/', POWER: '**' }
   return `(${a} ${OPS[op] || '+'} ${bv})`
 }
 kjsGen['text'] = (b) => `'${(b.getFieldValue('TEXT') || '').replace(/'/g, "\\'")}'`
 kjsGen['logic_boolean'] = (b) => b.getFieldValue('BOOL') === 'TRUE' ? 'true' : 'false'
 kjsGen['logic_compare'] = (b) => {
-  const a = genKJSValue(b, 'A') || '0'
+  const a = genKJSValue(b, 'A', '0')
   const op = b.getFieldValue('OP') || 'EQ'
-  const bv = genKJSValue(b, 'B') || '0'
+  const bv = genKJSValue(b, 'B', '0')
   const OPS: Record<string, string> = { EQ: '===', NEQ: '!==', LT: '<', GT: '>', LTE: '<=', GTE: '>=' }
   return `(${a} ${OPS[op] || '==='} ${bv})`
 }
 kjsGen['logic_operation'] = (b) => {
-  const a = genKJSValue(b, 'A') || 'true'
+  const a = genKJSValue(b, 'A', 'true')
   const op = b.getFieldValue('OP') || 'AND'
-  const bv = genKJSValue(b, 'B') || 'true'
+  const bv = genKJSValue(b, 'B', 'true')
   return `(${a} ${op === 'AND' ? '&&' : '||'} ${bv})`
 }
-kjsGen['logic_negate'] = (b) => `!(${genKJSValue(b, 'BOOL') || 'true'})`
+kjsGen['logic_negate'] = (b) => `!(${genKJSValue(b, 'BOOL', 'true')})`
 
 // ── Custom JS Block ──
 kjsGen['kjs_custom_js'] = (b, i=0) => {
@@ -1920,19 +1938,23 @@ kjsGen['kjs_json_literal'] = (b) => b.getFieldValue('JSON') || '{}'
 
 // 复用内置积木的 KJS 生成器
 kjsGen['math_number'] = (b) => String(b.getFieldValue('NUM') || '0')
+kjsGen['math_add'] = (b) => `(${genKJSValue(b, 'A', '0')} + ${genKJSValue(b, 'B', '0')})`
+kjsGen['math_sub'] = (b) => `(${genKJSValue(b, 'A', '0')} - ${genKJSValue(b, 'B', '0')})`
+kjsGen['math_mul'] = (b) => `(${genKJSValue(b, 'A', '0')} * ${genKJSValue(b, 'B', '0')})`
+kjsGen['math_div'] = (b) => `(${genKJSValue(b, 'A', '0')} / ${genKJSValue(b, 'B', '0')})`
 kjsGen['text'] = (b) => `"${(b.getFieldValue('TEXT') || '').replace(/"/g, '\\"')}"`
 kjsGen['logic_boolean'] = (b) => (b.getFieldValue('BOOL') === 'TRUE' ? 'true' : 'false')
 kjsGen['logic_compare'] = (b) => {
-  const a = genKJSValue(b, 'A') || '0'; const g = genKJSValue(b, 'B') || '0'
+  const a = genKJSValue(b, 'A', '0'); const g = genKJSValue(b, 'B', '0')
   const op = b.getFieldValue('OP') || 'EQ'
   const m: Record<string,string> = { EQ:'==', NEQ:'!=', LT:'<', GT:'>', LTE:'<=', GTE:'>=' }
   return `(${a} ${m[op]} ${g})`
 }
 kjsGen['logic_operation'] = (b) => {
-  const a = genKJSValue(b, 'A') || 'false'; const g = genKJSValue(b, 'B') || 'false'
+  const a = genKJSValue(b, 'A', 'false'); const g = genKJSValue(b, 'B', 'false')
   return `(${a} ${b.getFieldValue('OP')==='AND'?'&&':'||'} ${g})`
 }
-kjsGen['logic_negate'] = (b) => `!(${genKJSValue(b,'BOOL') || 'false'})`
+kjsGen['logic_negate'] = (b) => `!(${genKJSValue(b, 'BOOL', 'false')})`
 
 // ── 补充通用事件值 ──
 kjsGen['kjs_ev_get_source'] = () => `event.getSource()`
@@ -1943,65 +1965,65 @@ kjsGen['kjs_ev_get_username'] = () => `event.getUsername()`
 kjsGen['kjs_ev_get_random'] = () => `event.getRandom()`
 
 // ── 配方操作 ──
-kjsGen['kjs_recipe_remove'] = (b,i=0) => `${'  '.repeat(i)}event.remove(${genKJSValue(b,'FILTER')})`
-kjsGen['kjs_recipe_replace_input'] = (b,i=0) => `${'  '.repeat(i)}event.replaceInput(${genKJSValue(b,'FILTER')}, ${genKJSValue(b,'FROM')}, ${genKJSValue(b,'TO')})`
-kjsGen['kjs_recipe_replace_output'] = (b,i=0) => `${'  '.repeat(i)}event.replaceOutput(${genKJSValue(b,'FILTER')}, ${genKJSValue(b,'FROM')}, ${genKJSValue(b,'TO')})`
+kjsGen['kjs_recipe_remove'] = (b,i=0) => `${'  '.repeat(i)}event.remove(${genKJSValue(b, 'FILTER', "''")})`
+kjsGen['kjs_recipe_replace_input'] = (b,i=0) => `${'  '.repeat(i)}event.replaceInput(${genKJSValue(b, 'FILTER', "''")}, ${genKJSValue(b, 'FROM', "''")}, ${genKJSValue(b, 'TO', "''")})`
+kjsGen['kjs_recipe_replace_output'] = (b,i=0) => `${'  '.repeat(i)}event.replaceOutput(${genKJSValue(b, 'FILTER', "''")}, ${genKJSValue(b, 'FROM', "''")}, ${genKJSValue(b, 'TO', "''")})`
 
 // ── 标签操作 ──
-kjsGen['kjs_tag_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b,'TAG')}, ${genKJSValue(b,'VALUES')})`
-kjsGen['kjs_tag_remove'] = (b,i=0) => `${'  '.repeat(i)}event.remove(${genKJSValue(b,'TAG')}, ${genKJSValue(b,'VALUES')})`
-kjsGen['kjs_tag_remove_all'] = (b,i=0) => `${'  '.repeat(i)}event.removeAll(${genKJSValue(b,'TAG')})`
+kjsGen['kjs_tag_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b, 'TAG', "''")}, ${genKJSValue(b, 'VALUES', "''")})`
+kjsGen['kjs_tag_remove'] = (b,i=0) => `${'  '.repeat(i)}event.remove(${genKJSValue(b, 'TAG', "''")}, ${genKJSValue(b, 'VALUES', "''")})`
+kjsGen['kjs_tag_remove_all'] = (b,i=0) => `${'  '.repeat(i)}event.removeAll(${genKJSValue(b, 'TAG', "''")})`
 
 // ── 阶段操作 ──
 kjsGen['kjs_stage_get'] = () => `event.getStage()`
-kjsGen['kjs_stage_add'] = (b,i=0) => `${'  '.repeat(i)}event.getPlayerStages()?.add(${genKJSValue(b,'STAGE')})`
-kjsGen['kjs_stage_remove'] = (b,i=0) => `${'  '.repeat(i)}event.getPlayerStages()?.remove(${genKJSValue(b,'STAGE')})`
+kjsGen['kjs_stage_add'] = (b,i=0) => `${'  '.repeat(i)}var _ps = event.getPlayerStages(); if (_ps) { _ps.add(${genKJSValue(b, 'STAGE', "''")}) }`
+kjsGen['kjs_stage_remove'] = (b,i=0) => `${'  '.repeat(i)}var _ps = event.getPlayerStages(); if (_ps) { _ps.remove(${genKJSValue(b, 'STAGE', "''")}) }`
 
 // ── 语言文件 ──
-kjsGen['kjs_lang_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b,'KEY')}, ${genKJSValue(b,'VALUE')})`
-kjsGen['kjs_lang_rename_item'] = (b,i=0) => `${'  '.repeat(i)}event.renameItem(${genKJSValue(b,'ITEM')}, ${genKJSValue(b,'NAME')})`
-kjsGen['kjs_lang_rename_block'] = (b,i=0) => `${'  '.repeat(i)}event.renameBlock(${genKJSValue(b,'BLOCK')}, ${genKJSValue(b,'NAME')})`
+kjsGen['kjs_lang_add'] = (b,i=0) => `${'  '.repeat(i)}event.add(${genKJSValue(b, 'KEY', "''")}, ${genKJSValue(b, 'VALUE', "''")})`
+kjsGen['kjs_lang_rename_item'] = (b,i=0) => `${'  '.repeat(i)}event.renameItem(${genKJSValue(b, 'ITEM', "''")}, ${genKJSValue(b, 'NAME', "''")})`
+kjsGen['kjs_lang_rename_block'] = (b,i=0) => `${'  '.repeat(i)}event.renameBlock(${genKJSValue(b, 'BLOCK', "''")}, ${genKJSValue(b, 'NAME', "''")})`
 
 // ── 爆炸/世界事件值 ──
 kjsGen['kjs_ev_get_position'] = () => `event.getPosition()`
 kjsGen['kjs_ev_get_size'] = () => `event.getSize()`
-kjsGen['kjs_ev_set_size'] = (b,i=0) => `${'  '.repeat(i)}event.setSize(${genKJSValue(b,'SIZE')})`
+kjsGen['kjs_ev_set_size'] = (b,i=0) => `${'  '.repeat(i)}event.setSize(${genKJSValue(b, 'SIZE', "''")})`
 kjsGen['kjs_ev_get_affected_entities'] = () => `event.getAffectedEntities()`
 kjsGen['kjs_ev_get_affected_blocks'] = () => `event.getAffectedBlocks()`
 kjsGen['kjs_ev_remove_knockback'] = (_b,i=0) => `${'  '.repeat(i)}event.removeKnockback()`
 
 // ── 实体掉落 ──
 kjsGen['kjs_ev_get_drops'] = () => `event.getDrops()`
-kjsGen['kjs_ev_add_drop'] = (b,i=0) => `${'  '.repeat(i)}event.addDrop(${genKJSValue(b,'STACK')})`
+kjsGen['kjs_ev_add_drop'] = (b,i=0) => `${'  '.repeat(i)}event.addDrop(${genKJSValue(b, 'STACK', "''")})`
 kjsGen['kjs_ev_is_recently_hit'] = () => `event.isRecentlyHit()`
 
 // ── 聊天消息 ──
 kjsGen['kjs_ev_get_chat_component'] = () => `event.getComponent()`
-kjsGen['kjs_ev_set_chat_component'] = (b,i=0) => `${'  '.repeat(i)}event.setComponent(${genKJSValue(b,'COMPONENT')})`
+kjsGen['kjs_ev_set_chat_component'] = (b,i=0) => `${'  '.repeat(i)}event.setComponent(${genKJSValue(b, 'COMPONENT', "''")})`
 
 // ── 新通用事件值积木 ──
-kjsGen['kjs_ev_get_player'] = () => `event.getEntity()?.getPlayer() ?? null`
+kjsGen['kjs_ev_get_player'] = () => `(function(){ var _e = event.getEntity(); return (_e && _e.getPlayer) ? _e.getPlayer() : null })()`
 kjsGen['kjs_ev_get_level'] = () => `event.getLevel()`
 kjsGen['kjs_ev_get_block'] = () => `event.getBlock()`
 kjsGen['kjs_ev_get_item'] = () => `event.getItem()`
 kjsGen['kjs_ev_get_server'] = () => `event.getServer()`
 kjsGen['kjs_ev_cancel'] = (_b,i=0) => `${'  '.repeat(i)}event.cancel()`
-kjsGen['kjs_ev_set_result'] = (b,i=0) => `${'  '.repeat(i)}event.exit(${genKJSValue(b,'VALUE')})`
-kjsGen['kjs_ev_log'] = (b,i=0) => `${'  '.repeat(i)}console.log(${genKJSValue(b,'MSG')})`
+kjsGen['kjs_ev_set_result'] = (b,i=0) => `${'  '.repeat(i)}event.exit(${genKJSValue(b, 'VALUE', "''")})`
+kjsGen['kjs_ev_log'] = (b,i=0) => `${'  '.repeat(i)}console.log(${genKJSValue(b, 'MSG', "''")})`
 kjsGen['kjs_ev_get_damage'] = () => `event.getDamage()`
-kjsGen['kjs_ev_set_damage'] = (b,i=0) => `${'  '.repeat(i)}event.setDamage(${genKJSValue(b,'DAMAGE')})`
+kjsGen['kjs_ev_set_damage'] = (b,i=0) => `${'  '.repeat(i)}event.setDamage(${genKJSValue(b, 'DAMAGE', "''")})`
 
 // ── 服务端工具积木 ──
-kjsGen['kjs_util_get_all_players'] = () => `event.getServer()?.getPlayerList()?.getPlayers() ?? []`
+kjsGen['kjs_util_get_all_players'] = () => `(function(){ var _s = event.getServer(); if (!_s) return []; var _pl = _s.getPlayerList(); return (_pl && _pl.getPlayers) ? _pl.getPlayers() : [] })()`
 kjsGen['kjs_util_send_msg'] = (b,i=0) => {
-  const msg = genKJSValue(b,'MSG')
-  return `${'  '.repeat(i)}event.getEntity()?.tell(${msg || "'hello'"})`
+  const msg = genKJSValue(b, 'MSG', "''")
+  return `${'  '.repeat(i)}var _ent = event.getEntity(); if (_ent) { _ent.tell(${msg || "'hello'"}) }`
 }
-kjsGen['kjs_util_run_cmd'] = (b,i=0) => `${'  '.repeat(i)}event.getServer()?.command(false, ${genKJSValue(b,'CMD') || "''"})`
+kjsGen['kjs_util_run_cmd'] = (b,i=0) => `${'  '.repeat(i)}var _srv = event.getServer(); if (_srv) { _srv.command(false, ${genKJSValue(b, 'CMD', "''")}) }`
 kjsGen['kjs_util_schedule'] = (b,i=0) => {
-  const ticks = genKJSValue(b,'TICKS') || '1'
+  const ticks = genKJSValue(b, 'TICKS', '1')
   const body = genKJSStatements(b, 'DO', 2)
-  return `${'  '.repeat(i)}event.getServer()?.schedule(${ticks}, (cb) => {\n${body || ''}\n${'  '.repeat(i)}})`
+  return `${'  '.repeat(i)}var _srv = event.getServer(); if (_srv) { _srv.schedule(${ticks}, (cb) => {\n${body || ''}\n${'  '.repeat(i)}}) }`
 }
 
 // ─── Generate KJS Code ───

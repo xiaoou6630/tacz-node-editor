@@ -220,7 +220,7 @@ Blockly.Blocks['check_heat'] = {
     this.setColour('#BA55D3')
   }
 }
-Blockly.Blocks['check_aiming'] = {
+Blockly.Blocks['check_aim_progress'] = {
   init() {
     this.appendDummyInput().appendField(_b('🎯 瞄准进度 ≥', '🎯 Aim Progress ≥'))
     this.appendValueInput('PROGRESS').setCheck('Number')
@@ -689,3 +689,78 @@ mathOps.forEach(([id, zh, en]) => {
     }
   }
 })
+
+// ─── Built-in Blocks (replacement for missing blockly/blocks) ───
+
+// 💡 math_number
+Blockly.Blocks['math_number'] = {
+  init() {
+    this.appendDummyInput()
+      .appendField(new Blockly.FieldNumber(0, -Infinity, Infinity), 'NUM')
+    this.setOutput(true, 'Number')
+    this.setColour('#4B70DD')
+  }
+}
+
+// 💡 text
+Blockly.Blocks['text'] = {
+  init() {
+    this.appendDummyInput()
+      .appendField(new Blockly.FieldTextInput(''), 'TEXT')
+    this.setOutput(true, 'String')
+    this.setColour('#4C9A8F')
+  }
+}
+
+// 💡 logic_boolean
+Blockly.Blocks['logic_boolean'] = {
+  init() {
+    this.appendDummyInput()
+      .appendField(new Blockly.FieldDropdown([['真', 'TRUE'], ['假', 'FALSE']]), 'BOOL')
+    this.setOutput(true, 'Boolean')
+    this.setColour('#5CB85C')
+  }
+}
+
+// 💡 logic_compare
+Blockly.Blocks['logic_compare'] = {
+  init() {
+    const opMenu = new Blockly.FieldDropdown([
+      ['=', 'EQ'],
+      ['≠', 'NEQ'],
+      ['<', 'LT'],
+      ['>', 'GT'],
+      ['≤', 'LTE'],
+      ['≥', 'GTE'],
+    ])
+    this.appendValueInput('A')
+    this.appendDummyInput().appendField(opMenu, 'OP')
+    this.appendValueInput('B')
+    this.setInputsInline(true)
+    this.setOutput(true, 'Boolean')
+    this.setColour('#5CB85C')
+  }
+}
+
+// 💡 logic_operation
+Blockly.Blocks['logic_operation'] = {
+  init() {
+    const opMenu = new Blockly.FieldDropdown([['与', 'AND'], ['或', 'OR']])
+    this.appendValueInput('A').setCheck('Boolean')
+    this.appendDummyInput().appendField(opMenu, 'OP')
+    this.appendValueInput('B').setCheck('Boolean')
+    this.setInputsInline(true)
+    this.setOutput(true, 'Boolean')
+    this.setColour('#5CB85C')
+  }
+}
+
+// 💡 logic_negate
+Blockly.Blocks['logic_negate'] = {
+  init() {
+    this.appendValueInput('BOOL').setCheck('Boolean')
+      .appendField('非')
+    this.setOutput(true, 'Boolean')
+    this.setColour('#5CB85C')
+  }
+}

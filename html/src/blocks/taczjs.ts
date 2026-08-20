@@ -295,6 +295,20 @@ Blockly.Blocks['kjs_ev_get_gun_item'] = {
     this.setColour('#DDA0DD');
   },
 }
+Blockly.Blocks['kjs_ev_get_heat_progress'] = {
+  init() {
+    this.appendDummyInput().appendField('🌡️ 获取过热进度')
+    this.setOutput(true, 'Number')
+    this.setColour('#FF6B6B');
+  },
+}
+Blockly.Blocks['kjs_ev_get_heat_amount'] = {
+  init() {
+    this.appendDummyInput().appendField('🔥 获取过热值')
+    this.setOutput(true, 'Number')
+    this.setColour('#FF6B6B');
+  },
+}
 
 // --- Load 公共方法 ---
 Blockly.Blocks['kjs_ev_get_id'] = {

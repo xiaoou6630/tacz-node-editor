@@ -553,20 +553,11 @@ registerExtension({
       colour: '#E5C07B',
       tooltip: _b('是否空仓换弹', 'Is empty reload'),
     },
-    {
-      type: 'get_fire_mode',
-      message0: '🔄 开火模式',
-      args0: [],
-      output: 'Number',
-      colour: '#E5C07B',
-      tooltip: _b('获取开火模式(0=全自动 1=半自动 2=多连发)', 'Get fire mode ordinal'),
-    },
   ],
   generators: {
     get_reload_state: () => 'context:getReloadStateType()',
     is_reloading: () => '(context:getReloadStateType() ~= 0)',
     is_empty_reload: () => '(context:getReloadStateType() == 1 or context:getReloadStateType() == 2)',
-    get_fire_mode: () => 'context:getFireMode()',
   },
 })
 
@@ -580,31 +571,12 @@ registerExtension({
   official: true,
   blocks: [
     {
-      type: 'get_shoot_interval',
-      message0: '⏱️ 射击间隔',
-      args0: [],
-      output: 'Number',
-      colour: '#56B6C2',
-      tooltip: _b('获取射击间隔(ms)', 'Get shoot interval in ms'),
-    },
-    {
       type: 'get_cooldown',
       message0: '⏱️ 射击冷却',
       args0: [],
       output: 'Number',
       colour: '#56B6C2',
       tooltip: _b('获取射击冷却(ms)', 'Get shoot cooldown in ms'),
-    },
-    {
-      type: 'adjust_shoot_interval',
-      message0: '⏱️ 调整射击间隔 %1',
-      args0: [
-        { type: 'input_value', name: 'DELTA', check: 'Number' },
-      ],
-      previousStatement: 'action_stmt',
-      nextStatement: 'action_stmt',
-      colour: '#56B6C2',
-      tooltip: _b('调整射击间隔(ms)，正数增加负数减少', 'Adjust shoot interval in ms'),
     },
     {
       type: 'get_current_time',
@@ -615,14 +587,6 @@ registerExtension({
       tooltip: _b('获取当前系统时间(ms)', 'Get current timestamp in ms'),
     },
     {
-      type: 'get_partial_ticks',
-      message0: '⏱️ PartialTicks',
-      args0: [],
-      output: 'Number',
-      colour: '#56B6C2',
-      tooltip: _b('获取最后更新的partialTicks', 'Get last update partialTicks'),
-    },
-    {
       type: 'has_bullet_in_barrel',
       message0: '⏱️ 枪膛有弹?',
       args0: [],
@@ -630,26 +594,11 @@ registerExtension({
       colour: '#56B6C2',
       tooltip: _b('枪膛中是否有子弹', 'Is there a bullet in barrel'),
     },
-    {
-      type: 'get_last_shoot_time',
-      message0: '⏱️ 上次射击时间',
-      args0: [],
-      output: 'Number',
-      colour: '#56B6C2',
-      tooltip: _b('上次射击的时间戳(ms)，切枪时重置为-1', 'Last shoot timestamp in ms, resets to -1 on gun switch'),
-    },
   ],
   generators: {
-    get_shoot_interval: () => 'context:getShootInterval()',
     get_cooldown: () => 'context:getShootCoolDown()',
-    adjust_shoot_interval: (_block, indent = 0) => {
-      // Note: value input is handled by genValue in the workspace
-      return `${'  '.repeat(indent)}context:adjustClientShootInterval(0)`
-    },
     get_current_time: () => 'context:getCurrentTimestamp()',
-    get_partial_ticks: () => 'context:getPartialTicks()',
     has_bullet_in_barrel: () => 'context:hasBulletInBarrel()',
-    get_last_shoot_time: () => 'context:getLastShootTimestamp()',
   },
 })
 
@@ -671,36 +620,12 @@ registerExtension({
       tooltip: _b('获取display中声明的状态机参数表', 'Get state machine params from display'),
     },
     {
-      type: 'get_put_away_time',
-      message0: '📊 收枪时长',
-      args0: [],
-      output: 'Number',
-      colour: '#98C379',
-      tooltip: _b('获取收起物品动画的建议时长', 'Get put away animation time'),
-    },
-    {
-      type: 'get_walk_dist',
-      message0: '📊 行走距离',
-      args0: [],
-      output: 'Number',
-      colour: '#98C379',
-      tooltip: _b('获取与锚点相对的行走距离', 'Get walk distance from anchor'),
-    },
-    {
       type: 'get_heat_progress',
       message0: '📊 过热进度',
       args0: [],
       output: 'Number',
       colour: '#98C379',
       tooltip: _b('获取过热进度 0~1', 'Get overheat progress 0~1'),
-    },
-    {
-      type: 'get_ammo_count',
-      message0: '📊 弹药数量',
-      args0: [],
-      output: 'Number',
-      colour: '#98C379',
-      tooltip: _b('获取弹匣备弹数', 'Get ammo count in magazine'),
     },
     {
       type: 'get_max_ammo',
@@ -713,10 +638,7 @@ registerExtension({
   ],
   generators: {
     get_state_params: () => 'context:getStateMachineParams()',
-    get_put_away_time: () => 'context:getPutAwayTime()',
-    get_walk_dist: () => 'context:getWalkDist()',
     get_heat_progress: () => 'context:getHeatProgress()',
-    get_ammo_count: () => 'context:getAmmoCount()',
     get_max_ammo: () => 'context:getMaxAmmoCount()',
   },
 })
@@ -739,14 +661,6 @@ registerExtension({
       tooltip: _b('玩家当前是否在瞄准', 'Is player currently aiming'),
     },
     {
-      type: 'get_aiming_progress',
-      message0: '🎯 瞄准进度',
-      args0: [],
-      output: 'Number',
-      colour: '#F9E2AF',
-      tooltip: _b('获取瞄准进度 0~1', 'Get aiming progress 0~1'),
-    },
-    {
       type: 'has_ammo_to_consume',
       message0: '🎯 有备弹?',
       args0: [],
@@ -757,7 +671,6 @@ registerExtension({
   ],
   generators: {
     is_aiming: () => 'context:isAiming()',
-    get_aiming_progress: () => 'context:getAimingProgress()',
     has_ammo_to_consume: () => 'context:hasAmmoToConsume()',
   },
 })
@@ -800,68 +713,5 @@ registerExtension({
     throwable_stack_count: () => 'context:getStackCount()',
     throwable_using_tick: () => 'context:getUsingTick()',
     throwable_is_using: () => 'context:isUsing()',
-  },
-})
-
-// 9. 轨道管理扩展（AnimationStateContext 基类方法）
-registerExtension({
-  id: 'track_management',
-  name: '轨道管理',
-  nameEn: 'Track Mgmt',
-  colour: '#89B4FA',
-  icon: '🛤️',
-  official: true,
-  blocks: [
-    {
-      type: 'add_track_line',
-      message0: '🛤️ 新建轨道行',
-      args0: [],
-      output: 'Number',
-      colour: '#89B4FA',
-      tooltip: _b('分配一个新的轨道行，返回下标', 'Allocate a new track line, returns index'),
-    },
-    {
-      type: 'get_track_line_size',
-      message0: '🛤️ 轨道行数',
-      args0: [],
-      output: 'Number',
-      colour: '#89B4FA',
-      tooltip: _b('获取轨道行数量', 'Get track line count'),
-    },
-    {
-      type: 'assign_new_track',
-      message0: '🛤️ 分配轨道 %1',
-      args0: [
-        { type: 'input_value', name: 'INDEX', check: 'Number' },
-      ],
-      output: 'Number',
-      colour: '#89B4FA',
-      tooltip: _b('为指定轨道行分配新轨道，返回轨道下标', 'Assign new track to track line, returns track index'),
-    },
-    {
-      type: 'get_singleton_track',
-      message0: '🛤️ 单例轨道 %1',
-      args0: [
-        { type: 'input_value', name: 'INDEX', check: 'Number' },
-      ],
-      output: 'Number',
-      colour: '#89B4FA',
-      tooltip: _b('获取只需一个轨道的轨道行（无则分配）', 'Get singleton track for track line'),
-    },
-    {
-      type: 'should_hide_crosshair',
-      message0: '🛤️ 准星隐藏?',
-      args0: [],
-      output: 'Boolean',
-      colour: '#89B4FA',
-      tooltip: _b('渲染时是否需要隐藏准心', 'Should crosshair be hidden'),
-    },
-  ],
-  generators: {
-    add_track_line: () => 'context:addTrackLine()',
-    get_track_line_size: () => 'context:getTrackLineSize()',
-    assign_new_track: (_block) => 'context:assignNewTrack(0)',
-    get_singleton_track: (_block) => 'context:getAsSingletonTrack(0)',
-    should_hide_crosshair: () => 'context:shouldHideCrossHair()',
   },
 })
